@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white">
@@ -8,13 +10,19 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="rounded-lg px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10 hover:text-white">
+          <Link
+            href="/sign-in"
+            className="rounded-lg px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10 hover:text-white"
+          >
             Sign In
-          </button>
+          </Link>
 
-          <button className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-gray-200">
+          <Link
+            href="/sign-up"
+            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-gray-200"
+          >
             Get Started
-          </button>
+          </Link>
         </div>
       </nav>
 
@@ -36,17 +44,24 @@ export default function Home() {
           time.
         </p>
 
+        {/* Primary Actions */}
         <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-          <button className="rounded-xl bg-white px-7 py-3.5 font-semibold text-black transition hover:bg-gray-200">
+          <Link
+            href="/sign-up"
+            className="rounded-xl bg-white px-7 py-3.5 font-semibold text-black transition hover:bg-gray-200"
+          >
             Start Coding
-          </button>
+          </Link>
 
-          <button className="rounded-xl border border-white/15 px-7 py-3.5 font-semibold text-white transition hover:bg-white/10">
+          <button
+            type="button"
+            className="rounded-xl border border-white/15 px-7 py-3.5 font-semibold text-white transition hover:bg-white/10"
+          >
             Explore CODE LAB
           </button>
         </div>
 
-        {/* Core features */}
+        {/* Core Features */}
         <div className="mt-24 grid w-full max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
           <Feature
             title="Real-time"
