@@ -1694,9 +1694,13 @@ function updatePanelVisibility(lang) {
   const previewPanel = document.getElementById('preview-panel');
   const outputPanel = document.getElementById('output-panel');
 
-  if (['html', 'css', 'javascript'].includes(lang)) {
+  if (['html', 'css'].includes(lang)) {
     previewPanel.classList.remove('hidden');
     outputPanel.classList.add('hidden');
+  } else if (lang === 'javascript') {
+    // JS gets both preview and output
+    previewPanel.classList.remove('hidden');
+    outputPanel.classList.remove('hidden');
   } else {
     previewPanel.classList.add('hidden');
     outputPanel.classList.remove('hidden');
@@ -1753,12 +1757,49 @@ function runCode() {
   const code = editor.getValue();
   const lang = currentProject.language;
 
-  if (['html', 'css', 'javascript'].includes(lang)) {
+  if (lang === 'html' || lang === 'css') {
     refreshPreview();
-  } else if (lang === 'python') {
-    runPythonSimulated(code);
-  } else if (lang === 'sql') {
-    runSqlSimulated(code);
+  } else {
+    // Run on server for Python, SQL, JavaScript
+    runOnServer(code, lang);
+  }
+}
+
+async function runOnServer(code, language) {
+  const output = document.getElementById('output-content');
+  output.innerHTML = '';
+  addOutput(`⚡ CODE_LAB ${language.toUpperCase()} Runner`, 'info');
+  addOutput('────────────────────────────────────', 'info');
+  addOutput('⏳ Running...', 'info');
+
+  try {
+    const data = await api('/api/execute', {
+      method: 'POST',
+      body: { code, language }
+    });
+
+    // Clear the "Running..." message
+    output.innerHTML = '';
+    addOutput(`⚡ CODE_LAB ${language.toUpperCase()} Runner`, 'info');
+    addOutput('────────────────────────────────────', 'info');
+
+    if (data.output) {
+      data.output.split('\n').forEach(line => addOutput(line, 'success'));
+    }
+    if (data.error) {
+      data.error.split('\n').forEach(line => addOutput(line, 'error'));
+    }
+    if (!data.output && !data.error) {
+      addOutput('(no output)', 'info');
+    }
+
+    addOutput('────────────────────────────────────', 'info');
+    addOutput('✓ Execution complete', 'info');
+  } catch (err) {
+    output.innerHTML = '';
+    addOutput(`⚡ CODE_LAB ${language.toUpperCase()} Runner`, 'info');
+    addOutput('────────────────────────────────────', 'info');
+    addOutput('❌ ' + err.message, 'error');
   }
 }
 
@@ -1807,96 +1848,6 @@ function refreshPreview() {
   }
 
   iframe.srcdoc = htmlContent;
-}
-
-function runPythonSimulated(code) {
-  const output = document.getElementById('output-content');
-  output.innerHTML = '';
-
-  addOutput('⚡ CODE_LAB Python Interpreter (simulated)', 'info');
-  addOutput('────────────────────────────────────', 'info');
-
-  // Simple Python interpreter simulation
-  const lines = code.split('\n');
-  const variables = {};
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-
-    // Handle print statements
-    const printMatch = trimmed.match(/^print\s*\((.*)\)\s*$/);
-    if (printMatch) {
-      let val = printMatch[1].trim();
-      // Handle f-strings
-      val = val.replace(/f["'](.+?)["']/g, (_, content) => {
-        return content.replace(/\{(.+?)\}/g, (__, expr) => {
-          return variables[expr.trim()] || expr;
-        });
-      });
-      // Handle regular strings
-      val = val.replace(/^["'](.*)["']$/, '$1');
-      // Handle variables
-      if (variables[val] !== undefined) val = variables[val];
-      addOutput(String(val), 'success');
-      continue;
-    }
-
-    // Handle variable assignments
-    const assignMatch = trimmed.match(/^(\w+)\s*=\s*(.+)$/);
-    if (assignMatch) {
-      let val = assignMatch[2].trim();
-      val = val.replace(/^["'](.*)["']$/, '$1');
-      if (!isNaN(val)) val = Number(val);
-      variables[assignMatch[1]] = val;
-      continue;
-    }
-
-    // Handle def
-    if (trimmed.startsWith('def ')) {
-      addOutput(`[function defined: ${trimmed.match(/def\s+(\w+)/)?.[1] || '?'}]`, 'info');
-      continue;
-    }
-  }
-
-  addOutput('────────────────────────────────────', 'info');
-  addOutput('✓ Execution complete', 'info');
-}
-
-function runSqlSimulated(code) {
-  const output = document.getElementById('output-content');
-  output.innerHTML = '';
-
-  addOutput('⚡ CODE_LAB SQL Console', 'info');
-  addOutput('────────────────────────────────────', 'info');
-
-  const statements = code.split(';').filter(s => s.trim());
-  for (const stmt of statements) {
-    const trimmed = stmt.trim();
-    if (!trimmed || trimmed.startsWith('--')) continue;
-
-    if (/^CREATE/i.test(trimmed)) {
-      addOutput('✓ Table created successfully', 'success');
-    } else if (/^INSERT/i.test(trimmed)) {
-      addOutput('✓ 1 row inserted', 'success');
-    } else if (/^SELECT/i.test(trimmed)) {
-      addOutput('┌─ Query Results ─────────────────┐', 'info');
-      addOutput('│ (simulated output)              │', '');
-      addOutput('│ Results would appear here       │', '');
-      addOutput('└─────────────────────────────────┘', 'info');
-    } else if (/^UPDATE/i.test(trimmed)) {
-      addOutput('✓ Rows updated', 'success');
-    } else if (/^DELETE/i.test(trimmed)) {
-      addOutput('✓ Rows deleted', 'success');
-    } else if (/^DROP/i.test(trimmed)) {
-      addOutput('✓ Table dropped', 'success');
-    } else {
-      addOutput('⟩ ' + trimmed.substring(0, 60) + '...', '');
-    }
-  }
-
-  addOutput('────────────────────────────────────', 'info');
-  addOutput('✓ Execution complete', 'info');
 }
 
 function addOutput(text, type = '') {

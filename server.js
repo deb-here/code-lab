@@ -621,6 +621,115 @@ app.post('/api/projects/:id/live-edit', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Code Execution Routes ───────────────────────────────────────────────────
+
+app.post('/api/execute', requireAuth, (req, res) => {
+  const { code, language } = req.body;
+  if (!code) return res.status(400).json({ error: 'No code provided' });
+
+  if (language === 'python') {
+    executePython(code, res);
+  } else if (language === 'sql') {
+    executeSql(code, req.session.userId, res);
+  } else if (language === 'javascript') {
+    executeJavaScript(code, res);
+  } else {
+    res.json({ output: 'Run is only supported for Python, SQL, and JavaScript.' });
+  }
+});
+
+function executePython(code, res) {
+  const { execFile } = require('child_process');
+  const tmpFile = path.join(dataDir, `run_${Date.now()}.py`);
+
+  fs.writeFileSync(tmpFile, code);
+
+  execFile('python3', [tmpFile], {
+    timeout: 10000, // 10 second limit
+    maxBuffer: 1024 * 512, // 512KB output limit
+    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' }
+  }, (error, stdout, stderr) => {
+    // Clean up temp file
+    try { fs.unlinkSync(tmpFile); } catch {}
+
+    if (error && error.killed) {
+      return res.json({ output: '', error: '⏱ Execution timed out (10s limit)' });
+    }
+
+    res.json({
+      output: stdout || '',
+      error: stderr || (error ? error.message : '')
+    });
+  });
+}
+
+function executeSql(code, userId, res) {
+  try {
+    // Each user gets their own sandbox database
+    const userDbPath = path.join(dataDir, `sandbox_${userId}.db`);
+    const userDb = new Database(userDbPath);
+    userDb.pragma('journal_mode = WAL');
+
+    const statements = code.split(';').filter(s => s.trim() && !s.trim().startsWith('--'));
+    const results = [];
+
+    for (const stmt of statements) {
+      const trimmed = stmt.trim();
+      if (!trimmed) continue;
+
+      try {
+        if (/^\s*(SELECT|PRAGMA|EXPLAIN)/i.test(trimmed)) {
+          const rows = userDb.prepare(trimmed).all();
+          if (rows.length === 0) {
+            results.push('(no rows returned)');
+          } else {
+            // Format as table
+            const cols = Object.keys(rows[0]);
+            const header = cols.join(' | ');
+            const sep = cols.map(c => '-'.repeat(Math.max(c.length, 6))).join('-+-');
+            const dataRows = rows.slice(0, 50).map(r => cols.map(c => String(r[c] ?? 'NULL')).join(' | '));
+            results.push([header, sep, ...dataRows].join('\n'));
+            if (rows.length > 50) results.push(`... (${rows.length - 50} more rows)`);
+          }
+        } else {
+          const info = userDb.prepare(trimmed).run();
+          results.push(`✓ OK (${info.changes} row(s) affected)`);
+        }
+      } catch (sqlErr) {
+        results.push(`❌ ${sqlErr.message}`);
+      }
+    }
+
+    userDb.close();
+    res.json({ output: results.join('\n\n') });
+  } catch (err) {
+    res.json({ output: '', error: err.message });
+  }
+}
+
+function executeJavaScript(code, res) {
+  const { execFile } = require('child_process');
+  const tmpFile = path.join(dataDir, `run_${Date.now()}.js`);
+
+  fs.writeFileSync(tmpFile, code);
+
+  execFile('node', [tmpFile], {
+    timeout: 10000,
+    maxBuffer: 1024 * 512
+  }, (error, stdout, stderr) => {
+    try { fs.unlinkSync(tmpFile); } catch {}
+
+    if (error && error.killed) {
+      return res.json({ output: '', error: '⏱ Execution timed out (10s limit)' });
+    }
+
+    res.json({
+      output: stdout || '',
+      error: stderr || (error ? error.message : '')
+    });
+  });
+}
+
 // ── Collaboration Routes ────────────────────────────────────────────────────
 
 // Invite a user to a project
