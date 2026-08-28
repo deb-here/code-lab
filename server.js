@@ -9,6 +9,13 @@ const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ── Ensure data directory exists ────────────────────────────────────────────
+const fs = require('fs');
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
 // ── Database Setup ──────────────────────────────────────────────────────────
 const db = new Database(path.join(__dirname, 'data', 'codeeditor.db'));
 db.pragma('journal_mode = WAL');
@@ -449,13 +456,6 @@ app.get('*', (req, res) => {
   }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
-// ── Ensure data directory exists ────────────────────────────────────────────
-const fs = require('fs');
-const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
 
 // ── Start Server ────────────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
