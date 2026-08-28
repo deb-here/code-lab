@@ -1,4 +1,4 @@
-# ⚡ CODE_LAB — Futuristic Code Editor
+# ⚡ CODE_LAB 
 
 A futuristic, neon-themed online code editor with real-time collaboration, multi-language support, user accounts, project management, and GitHub integration.
 
