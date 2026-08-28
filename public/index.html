@@ -728,6 +728,68 @@
       margin-left: auto;
       display: flex; align-items: center; gap: 8px;
     }
+
+    /* ── Collaborator Items ──────────────────────────────────────────── */
+    .collab-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: var(--radius-sm);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      margin-bottom: 8px;
+    }
+
+    .collab-item .collab-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.8rem;
+      color: var(--bg-primary);
+    }
+
+    .collab-item .collab-info { flex: 1; }
+    .collab-item .collab-name { font-weight: 600; font-size: 0.9rem; }
+    .collab-item .collab-role-label { font-size: 0.75rem; color: var(--text-secondary); }
+
+    .role-editor { background: linear-gradient(135deg, var(--neon-green), #00cc6a); }
+    .role-viewer { background: linear-gradient(135deg, var(--neon-blue), #0099cc); }
+
+    .shared-section-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 1rem; color: var(--neon-blue);
+      margin: 32px 0 16px; padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .shared-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 20px;
+      background: rgba(0,212,255,0.1);
+      border: 1px solid rgba(0,212,255,0.3);
+      color: var(--neon-blue);
+      font-size: 0.75rem; font-weight: 600;
+    }
+
+    .role-indicator {
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 0.7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .role-indicator.owner { background: rgba(255,215,0,0.15); color: var(--neon-yellow); border: 1px solid rgba(255,215,0,0.3); }
+    .role-indicator.editor { background: rgba(0,255,136,0.15); color: var(--neon-green); border: 1px solid rgba(0,255,136,0.3); }
+    .role-indicator.viewer { background: rgba(0,212,255,0.15); color: var(--neon-blue); border: 1px solid rgba(0,212,255,0.3); }
+
+    .user-suggestion {
+      padding: 8px 12px; cursor: pointer;
+      border-radius: var(--radius-sm);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      margin-bottom: 4px;
+      font-size: 0.85rem;
+      transition: var(--transition);
+    }
+    .user-suggestion:hover {
+      border-color: var(--neon-green);
+      color: var(--neon-green);
+    }
   </style>
 </head>
 <body>
@@ -906,7 +968,9 @@
 
       <div class="toolbar-right">
         <span class="save-status" id="save-status">Ready</span>
+        <span id="role-badge" class="lang-badge" style="display:none"></span>
         <div class="separator"></div>
+        <button class="toolbar-btn" id="btn-collab" onclick="showCollaboratorsModal()" title="Manage Collaborators">👥 Team</button>
         <button class="toolbar-btn" onclick="pushToGitHub()" title="Push to GitHub">
           🐙 Push to GitHub
         </button>
@@ -975,6 +1039,38 @@
   </div>
 </div>
 
+<!-- ═══════════════════════ COLLABORATORS MODAL ═══════════════════════ -->
+<div id="modal-collaborators" class="modal-overlay hidden">
+  <div class="modal" style="max-width:560px">
+    <h2>👥 Collaborators</h2>
+    <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:16px;">
+      Invite users to your project as <strong style="color:var(--neon-blue)">viewers</strong> (read-only) or <strong style="color:var(--neon-green)">editors</strong> (can edit & push).
+    </p>
+
+    <!-- Invite Form -->
+    <div id="collab-invite-section">
+      <div style="display:flex; gap:8px; margin-bottom:16px;">
+        <input type="text" id="collab-username" class="form-input" placeholder="Username to invite" style="flex:1" oninput="searchUsers(this.value)">
+        <select id="collab-role" class="form-input" style="width:120px">
+          <option value="editor">Editor</option>
+          <option value="viewer">Viewer</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="inviteCollaborator()">Invite</button>
+      </div>
+      <div id="user-search-results" style="margin-bottom:12px"></div>
+    </div>
+
+    <!-- Current Collaborators List -->
+    <div id="collab-list" style="max-height:300px; overflow-y:auto;">
+      <p style="color:var(--text-dim); font-size:0.85rem;">No collaborators yet</p>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="hideModal('modal-collaborators')">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════ TOAST CONTAINER ═══════════════════════ -->
 <div class="toast-container" id="toast-container"></div>
 
@@ -987,7 +1083,10 @@
 // ══════════════════════════════════════════════════════════════════
 let currentUser = null;
 let currentProject = null;
+let currentRole = null;
+let currentCollaborators = [];
 let projects = [];
+let sharedProjects = [];
 let editor = null;
 let editorReady = false;
 let autoSaveTimer = null;
@@ -1166,8 +1265,22 @@ async function showEditor(projectId) {
   try {
     const data = await api(`/api/projects/${projectId}`);
     currentProject = data.project;
-    document.getElementById('editor-project-name').textContent = currentProject.name;
+    currentRole = data.role || 'owner';
+    currentCollaborators = data.collaborators || [];
+
+    document.getElementById('editor-project-name').textContent = currentProject.name +
+      (currentRole !== 'owner' ? ` (by ${data.owner})` : '');
     document.getElementById('language-select').value = currentProject.language;
+
+    // Show role badge
+    const roleBadge = document.getElementById('role-badge');
+    roleBadge.style.display = 'inline-block';
+    roleBadge.className = `role-indicator ${currentRole}`;
+    roleBadge.textContent = currentRole;
+
+    // Show/hide controls based on role
+    const isReadOnly = currentRole === 'viewer';
+    document.getElementById('language-select').disabled = isReadOnly;
 
     updatePanelVisibility(currentProject.language);
 
@@ -1177,6 +1290,7 @@ async function showEditor(projectId) {
 
     setEditorLanguage(currentProject.language);
     editor.setValue(currentProject.code || '');
+    editor.updateOptions({ readOnly: currentRole === 'viewer' });
 
     if (['html', 'css', 'javascript'].includes(currentProject.language)) {
       setTimeout(refreshPreview, 300);
@@ -1194,6 +1308,7 @@ async function loadProjects() {
   try {
     const data = await api('/api/projects');
     projects = data.projects;
+    sharedProjects = data.shared_projects || [];
     renderProjects();
   } catch (err) {
     toast('Failed to load projects: ' + err.message, 'error');
@@ -1202,8 +1317,9 @@ async function loadProjects() {
 
 function renderProjects() {
   const grid = document.getElementById('projects-grid');
-  const hosted = projects.filter(p => p.is_hosted).length;
-  const langs = new Set(projects.map(p => p.language)).size;
+  const allProjects = [...projects, ...sharedProjects];
+  const hosted = allProjects.filter(p => p.is_hosted).length;
+  const langs = new Set(allProjects.map(p => p.language)).size;
 
   document.getElementById('stat-projects').textContent = projects.length;
   document.getElementById('stat-hosted').textContent = hosted;
@@ -1214,21 +1330,33 @@ function renderProjects() {
       <div class="plus-icon">+</div>
       <span>New Project</span>
     </div>
-    ${projects.map(p => `
-      <div class="project-card" onclick="showEditor(${p.id})">
-        <h3>${escHtml(p.name)}</h3>
-        <p class="project-desc">${escHtml(p.description) || 'No description'}</p>
-        <div class="project-meta">
-          <span class="lang-badge lang-${p.language}">${p.language}</span>
-          ${p.is_hosted ? '<span class="hosted-badge">🌐 Hosted</span>' : ''}
-          <span class="project-date">${formatDate(p.updated_at)}</span>
-        </div>
-        <div style="margin-top:12px; display:flex; gap:8px;">
-          ${p.github_url ? `<a href="${escHtml(p.github_url)}" target="_blank" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">🐙 Repo</a>` : ''}
-          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteProject(${p.id}, '${escHtml(p.name)}')">🗑</button>
-        </div>
+    ${projects.map(p => renderProjectCard(p, 'owner')).join('')}
+    ${sharedProjects.length > 0 ? `
+      <div style="grid-column: 1/-1">
+        <h3 class="shared-section-title">👥 Shared With You</h3>
       </div>
-    `).join('')}
+      ${sharedProjects.map(p => renderProjectCard(p, p.role)).join('')}
+    ` : ''}
+  `;
+}
+
+function renderProjectCard(p, role) {
+  return `
+    <div class="project-card" onclick="showEditor(${p.id})">
+      <h3>${escHtml(p.name)}</h3>
+      <p class="project-desc">${escHtml(p.description) || 'No description'}</p>
+      <div class="project-meta">
+        <span class="lang-badge lang-${p.language}">${p.language}</span>
+        ${p.is_hosted ? '<span class="hosted-badge">🌐 Hosted</span>' : ''}
+        ${role !== 'owner' ? `<span class="shared-badge">👥 ${role}</span>` : ''}
+        <span class="project-date">${formatDate(p.updated_at)}</span>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px;">
+        ${p.github_url ? `<a href="${escHtml(p.github_url)}" target="_blank" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">🐙 Repo</a>` : ''}
+        ${role === 'owner' ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteProject(${p.id}, '${escHtml(p.name)}')">🗑</button>` : ''}
+        ${role !== 'owner' ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); leaveProject(${p.id})">↩ Leave</button>` : ''}
+      </div>
+    </div>
   `;
 }
 
@@ -1409,6 +1537,10 @@ function updatePanelVisibility(lang) {
 // ══════════════════════════════════════════════════════════════════
 async function saveProject(silent = false) {
   if (!currentProject || !editor) return;
+  if (currentRole === 'viewer') {
+    if (!silent) toast('View-only access — cannot save', 'error');
+    return;
+  }
 
   const statusEl = document.getElementById('save-status');
   statusEl.textContent = '⟳ Saving...';
@@ -1683,6 +1815,128 @@ async function pushToGitHub() {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// COLLABORATION
+// ══════════════════════════════════════════════════════════════════
+function showCollaboratorsModal() {
+  if (!currentProject) return;
+  document.getElementById('collab-username').value = '';
+  document.getElementById('user-search-results').innerHTML = '';
+
+  // Only show invite form for owners
+  document.getElementById('collab-invite-section').style.display =
+    currentRole === 'owner' ? 'block' : 'none';
+
+  renderCollaboratorsList();
+  document.getElementById('modal-collaborators').classList.remove('hidden');
+}
+
+function renderCollaboratorsList() {
+  const list = document.getElementById('collab-list');
+  if (currentCollaborators.length === 0) {
+    list.innerHTML = '<p style="color:var(--text-dim); font-size:0.85rem;">No collaborators yet. Invite someone above!</p>';
+    return;
+  }
+
+  list.innerHTML = currentCollaborators.map(c => `
+    <div class="collab-item">
+      <div class="collab-avatar ${c.role === 'editor' ? 'role-editor' : 'role-viewer'}">
+        ${c.username[0].toUpperCase()}
+      </div>
+      <div class="collab-info">
+        <div class="collab-name">${escHtml(c.username)}</div>
+        <div class="collab-role-label">${c.role === 'editor' ? '✏️ Can edit & push' : '👁️ View only'}</div>
+      </div>
+      ${currentRole === 'owner' ? `
+        <select class="toolbar-select" onchange="updateCollabRole(${c.id}, this.value)" style="width:100px">
+          <option value="editor" ${c.role === 'editor' ? 'selected' : ''}>Editor</option>
+          <option value="viewer" ${c.role === 'viewer' ? 'selected' : ''}>Viewer</option>
+        </select>
+        <button class="btn btn-danger btn-sm" onclick="removeCollaborator(${c.id})" title="Remove">✕</button>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+let searchTimeout;
+async function searchUsers(query) {
+  clearTimeout(searchTimeout);
+  const container = document.getElementById('user-search-results');
+  if (query.length < 2) { container.innerHTML = ''; return; }
+
+  searchTimeout = setTimeout(async () => {
+    try {
+      const data = await api(`/api/users/search?q=${encodeURIComponent(query)}`);
+      if (data.users.length === 0) {
+        container.innerHTML = '';
+        return;
+      }
+      container.innerHTML = data.users.map(u =>
+        `<div class="user-suggestion" onclick="document.getElementById('collab-username').value='${escHtml(u.username)}'; document.getElementById('user-search-results').innerHTML='';">
+          ${escHtml(u.username)}
+        </div>`
+      ).join('');
+    } catch { container.innerHTML = ''; }
+  }, 300);
+}
+
+async function inviteCollaborator() {
+  const username = document.getElementById('collab-username').value.trim();
+  const role = document.getElementById('collab-role').value;
+  if (!username) { toast('Enter a username', 'error'); return; }
+
+  try {
+    const data = await api(`/api/projects/${currentProject.id}/collaborators`, {
+      method: 'POST', body: { username, role }
+    });
+    currentCollaborators = data.collaborators;
+    document.getElementById('collab-username').value = '';
+    document.getElementById('user-search-results').innerHTML = '';
+    renderCollaboratorsList();
+    toast(`${username} invited as ${role}!`, 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function updateCollabRole(collabId, role) {
+  try {
+    const data = await api(`/api/projects/${currentProject.id}/collaborators/${collabId}`, {
+      method: 'PUT', body: { role }
+    });
+    currentCollaborators = data.collaborators;
+    renderCollaboratorsList();
+    toast('Role updated', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function removeCollaborator(collabId) {
+  if (!confirm('Remove this collaborator?')) return;
+  try {
+    const data = await api(`/api/projects/${currentProject.id}/collaborators/${collabId}`, {
+      method: 'DELETE'
+    });
+    currentCollaborators = data.collaborators;
+    renderCollaboratorsList();
+    toast('Collaborator removed', 'info');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function leaveProject(projectId) {
+  if (!confirm('Leave this shared project?')) return;
+  try {
+    await api(`/api/projects/${projectId}/leave`, { method: 'POST' });
+    toast('Left project', 'info');
+    showDashboard();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
 // RESIZE HANDLE
 // ══════════════════════════════════════════════════════════════════
 (() => {
@@ -1739,6 +1993,9 @@ document.getElementById('reg-password').addEventListener('keydown', (e) => {
 // Close modal on overlay click
 document.getElementById('modal-new-project').addEventListener('click', function(e) {
   if (e.target === this) hideModal('modal-new-project');
+});
+document.getElementById('modal-collaborators').addEventListener('click', function(e) {
+  if (e.target === this) hideModal('modal-collaborators');
 });
 </script>
 

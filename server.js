@@ -47,6 +47,19 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS collaborators (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT DEFAULT 'viewer',
+    invited_by INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (invited_by) REFERENCES users(id),
+    UNIQUE(project_id, user_id)
+  );
+
   CREATE TABLE IF NOT EXISTS project_files (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,
@@ -80,6 +93,27 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   next();
+}
+
+// Project access helper: returns { project, role } or null
+function getProjectAccess(projectId, userId) {
+  // Check if owner
+  const owned = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
+  if (owned) return { project: owned, role: 'owner' };
+
+  // Check if collaborator
+  const collab = db.prepare('SELECT role FROM collaborators WHERE project_id = ? AND user_id = ?').get(projectId, userId);
+  if (collab) {
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
+    if (project) return { project, role: collab.role };
+  }
+
+  return null;
+}
+
+// Check if user can edit (owner or editor)
+function canEdit(role) {
+  return role === 'owner' || role === 'editor';
 }
 
 // ── Auth Routes ─────────────────────────────────────────────────────────────
@@ -184,8 +218,17 @@ app.post('/api/github/disconnect', requireAuth, (req, res) => {
 // ── Project Routes ──────────────────────────────────────────────────────────
 
 app.get('/api/projects', requireAuth, (req, res) => {
-  const projects = db.prepare('SELECT * FROM projects WHERE user_id = ? ORDER BY updated_at DESC').all(req.session.userId);
-  res.json({ projects });
+  const owned = db.prepare("SELECT *, 'owner' as role FROM projects WHERE user_id = ? ORDER BY updated_at DESC").all(req.session.userId);
+
+  const shared = db.prepare(`
+    SELECT p.*, c.role
+    FROM projects p
+    JOIN collaborators c ON c.project_id = p.id
+    WHERE c.user_id = ?
+    ORDER BY p.updated_at DESC
+  `).all(req.session.userId);
+
+  res.json({ projects: owned, shared_projects: shared });
 });
 
 app.post('/api/projects', requireAuth, (req, res) => {
@@ -207,24 +250,32 @@ app.post('/api/projects', requireAuth, (req, res) => {
 });
 
 app.get('/api/projects/:id', requireAuth, (req, res) => {
-  const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
-  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const access = getProjectAccess(req.params.id, req.session.userId);
+  if (!access) return res.status(404).json({ error: 'Project not found' });
 
-  const files = db.prepare('SELECT * FROM project_files WHERE project_id = ? ORDER BY filename').all(project.id);
-  res.json({ project, files });
+  const files = db.prepare('SELECT * FROM project_files WHERE project_id = ? ORDER BY filename').all(access.project.id);
+  const collaborators = db.prepare(`
+    SELECT c.id, c.role, c.created_at, u.username, u.email
+    FROM collaborators c JOIN users u ON u.id = c.user_id
+    WHERE c.project_id = ?
+  `).all(access.project.id);
+  const owner = db.prepare('SELECT username FROM users WHERE id = ?').get(access.project.user_id);
+
+  res.json({ project: access.project, files, role: access.role, collaborators, owner: owner?.username });
 });
 
 app.put('/api/projects/:id', requireAuth, (req, res) => {
   try {
     const { name, description, language, code } = req.body;
-    const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
-    if (!project) return res.status(404).json({ error: 'Project not found' });
+    const access = getProjectAccess(req.params.id, req.session.userId);
+    if (!access) return res.status(404).json({ error: 'Project not found' });
+    if (!canEdit(access.role)) return res.status(403).json({ error: 'You have view-only access' });
 
     db.prepare(
       'UPDATE projects SET name = ?, description = ?, language = ?, code = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-    ).run(name || project.name, description ?? project.description, language || project.language, code ?? project.code, project.id);
+    ).run(name || access.project.name, description ?? access.project.description, language || access.project.language, code ?? access.project.code, access.project.id);
 
-    const updated = db.prepare('SELECT * FROM projects WHERE id = ?').get(project.id);
+    const updated = db.prepare('SELECT * FROM projects WHERE id = ?').get(access.project.id);
     res.json({ success: true, project: updated });
   } catch (err) {
     console.error('Update project error:', err);
@@ -245,19 +296,20 @@ app.delete('/api/projects/:id', requireAuth, (req, res) => {
 app.post('/api/projects/:id/files', requireAuth, (req, res) => {
   try {
     const { filename, content, language } = req.body;
-    const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
-    if (!project) return res.status(404).json({ error: 'Project not found' });
+    const access = getProjectAccess(req.params.id, req.session.userId);
+    if (!access) return res.status(404).json({ error: 'Project not found' });
+    if (!canEdit(access.role)) return res.status(403).json({ error: 'You have view-only access' });
 
-    const existing = db.prepare('SELECT id FROM project_files WHERE project_id = ? AND filename = ?').get(project.id, filename);
+    const existing = db.prepare('SELECT id FROM project_files WHERE project_id = ? AND filename = ?').get(access.project.id, filename);
     if (existing) {
       db.prepare('UPDATE project_files SET content = ?, language = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
         .run(content || '', language || 'html', existing.id);
     } else {
       db.prepare('INSERT INTO project_files (project_id, filename, content, language) VALUES (?, ?, ?, ?)')
-        .run(project.id, filename, content || '', language || 'html');
+        .run(access.project.id, filename, content || '', language || 'html');
     }
 
-    const files = db.prepare('SELECT * FROM project_files WHERE project_id = ?').all(project.id);
+    const files = db.prepare('SELECT * FROM project_files WHERE project_id = ?').all(access.project.id);
     res.json({ success: true, files });
   } catch (err) {
     console.error('Save file error:', err);
@@ -266,10 +318,11 @@ app.post('/api/projects/:id/files', requireAuth, (req, res) => {
 });
 
 app.delete('/api/projects/:id/files/:fileId', requireAuth, (req, res) => {
-  const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
-  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const access = getProjectAccess(req.params.id, req.session.userId);
+  if (!access) return res.status(404).json({ error: 'Project not found' });
+  if (!canEdit(access.role)) return res.status(403).json({ error: 'You have view-only access' });
 
-  db.prepare('DELETE FROM project_files WHERE id = ? AND project_id = ?').run(req.params.fileId, project.id);
+  db.prepare('DELETE FROM project_files WHERE id = ? AND project_id = ?').run(req.params.fileId, access.project.id);
   res.json({ success: true });
 });
 
@@ -282,8 +335,10 @@ app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Connect your GitHub account first in Settings' });
     }
 
-    const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
-    if (!project) return res.status(404).json({ error: 'Project not found' });
+    const access = getProjectAccess(req.params.id, req.session.userId);
+    if (!access) return res.status(404).json({ error: 'Project not found' });
+    if (!canEdit(access.role)) return res.status(403).json({ error: 'You have view-only access' });
+    const project = access.project;
 
     const ghHeaders = {
       Authorization: `token ${user.github_token}`,
@@ -398,6 +453,111 @@ app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
     console.error('GitHub push error:', err.response?.data || err.message);
     res.status(500).json({ error: 'Failed to push to GitHub: ' + (err.response?.data?.message || err.message) });
   }
+});
+
+// ── Collaboration Routes ────────────────────────────────────────────────────
+
+// Invite a user to a project
+app.post('/api/projects/:id/collaborators', requireAuth, (req, res) => {
+  try {
+    const { username, role } = req.body;
+    if (!username) return res.status(400).json({ error: 'Username required' });
+    if (!['viewer', 'editor'].includes(role)) return res.status(400).json({ error: 'Role must be viewer or editor' });
+
+    // Only owner can invite
+    const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
+    if (!project) return res.status(403).json({ error: 'Only the project owner can invite collaborators' });
+
+    // Find user to invite
+    const invitee = db.prepare('SELECT id, username FROM users WHERE username = ?').get(username);
+    if (!invitee) return res.status(404).json({ error: `User "${username}" not found` });
+    if (invitee.id === req.session.userId) return res.status(400).json({ error: 'You cannot invite yourself' });
+
+    // Check if already a collaborator
+    const existing = db.prepare('SELECT id FROM collaborators WHERE project_id = ? AND user_id = ?').get(project.id, invitee.id);
+    if (existing) {
+      // Update role instead
+      db.prepare('UPDATE collaborators SET role = ? WHERE id = ?').run(role, existing.id);
+    } else {
+      db.prepare('INSERT INTO collaborators (project_id, user_id, role, invited_by) VALUES (?, ?, ?, ?)')
+        .run(project.id, invitee.id, role, req.session.userId);
+    }
+
+    const collaborators = db.prepare(`
+      SELECT c.id, c.role, c.created_at, u.username, u.email
+      FROM collaborators c JOIN users u ON u.id = c.user_id
+      WHERE c.project_id = ?
+    `).all(project.id);
+
+    res.json({ success: true, collaborators });
+  } catch (err) {
+    console.error('Invite error:', err);
+    res.status(500).json({ error: 'Failed to invite user' });
+  }
+});
+
+// Update collaborator role
+app.put('/api/projects/:id/collaborators/:collabId', requireAuth, (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!['viewer', 'editor'].includes(role)) return res.status(400).json({ error: 'Role must be viewer or editor' });
+
+    const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
+    if (!project) return res.status(403).json({ error: 'Only the project owner can change roles' });
+
+    db.prepare('UPDATE collaborators SET role = ? WHERE id = ? AND project_id = ?').run(role, req.params.collabId, project.id);
+
+    const collaborators = db.prepare(`
+      SELECT c.id, c.role, c.created_at, u.username, u.email
+      FROM collaborators c JOIN users u ON u.id = c.user_id
+      WHERE c.project_id = ?
+    `).all(project.id);
+
+    res.json({ success: true, collaborators });
+  } catch (err) {
+    console.error('Update role error:', err);
+    res.status(500).json({ error: 'Failed to update role' });
+  }
+});
+
+// Remove collaborator
+app.delete('/api/projects/:id/collaborators/:collabId', requireAuth, (req, res) => {
+  try {
+    const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
+    if (!project) return res.status(403).json({ error: 'Only the project owner can remove collaborators' });
+
+    db.prepare('DELETE FROM collaborators WHERE id = ? AND project_id = ?').run(req.params.collabId, project.id);
+
+    const collaborators = db.prepare(`
+      SELECT c.id, c.role, c.created_at, u.username, u.email
+      FROM collaborators c JOIN users u ON u.id = c.user_id
+      WHERE c.project_id = ?
+    `).all(project.id);
+
+    res.json({ success: true, collaborators });
+  } catch (err) {
+    console.error('Remove collaborator error:', err);
+    res.status(500).json({ error: 'Failed to remove collaborator' });
+  }
+});
+
+// Leave a shared project (for collaborators)
+app.post('/api/projects/:id/leave', requireAuth, (req, res) => {
+  try {
+    db.prepare('DELETE FROM collaborators WHERE project_id = ? AND user_id = ?').run(req.params.id, req.session.userId);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to leave project' });
+  }
+});
+
+// Search users (for invite autocomplete)
+app.get('/api/users/search', requireAuth, (req, res) => {
+  const q = req.query.q;
+  if (!q || q.length < 2) return res.json({ users: [] });
+  const users = db.prepare('SELECT id, username FROM users WHERE username LIKE ? AND id != ? LIMIT 5')
+    .all(`%${q}%`, req.session.userId);
+  res.json({ users });
 });
 
 // ── Helper Functions ────────────────────────────────────────────────────────
