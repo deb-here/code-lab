@@ -101,6 +101,34 @@ app.use(session({
 // Max 10 users enforcement
 const MAX_USERS = 10;
 
+// ── Real-time SSE Connections ───────────────────────────────────────────────
+// Map: projectId -> Map of { odId -> { res, userId, username } }
+const projectClients = new Map();
+
+function broadcastToProject(projectId, event, data, excludeUserId = null) {
+  const clients = projectClients.get(String(projectId));
+  if (!clients) return;
+  const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const [id, client] of clients) {
+    if (excludeUserId && client.userId === excludeUserId) continue;
+    client.res.write(message);
+  }
+}
+
+function getActiveUsers(projectId) {
+  const clients = projectClients.get(String(projectId));
+  if (!clients) return [];
+  const seen = new Set();
+  const users = [];
+  for (const [, client] of clients) {
+    if (!seen.has(client.userId)) {
+      seen.add(client.userId);
+      users.push({ userId: client.userId, username: client.username });
+    }
+  }
+  return users;
+}
+
 // Auth middleware
 function requireAuth(req, res, next) {
   if (!req.session.userId) {
@@ -406,7 +434,7 @@ app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
       try {
         const createRes = await axios.post('https://api.github.com/user/repos', {
           name: repoName,
-          description: project.description || `Created with NeonCode Editor`,
+          description: project.description || `Created with CODE_LAB Editor`,
           auto_init: true,
           private: false
         }, { headers: ghHeaders });
@@ -465,7 +493,7 @@ app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
       await axios.put(
         `https://api.github.com/repos/${repoFullName}/contents/${filePath}`,
         {
-          message: `Update ${filePath} via NeonCode Editor`,
+          message: `Update ${filePath} via CODE_LAB Editor`,
           content: contentBase64,
           ...(sha ? { sha } : {})
         },
@@ -506,6 +534,91 @@ app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
     console.error('GitHub push error:', err.response?.data || err.message);
     res.status(500).json({ error: 'Failed to push to GitHub: ' + (err.response?.data?.message || err.message) });
   }
+});
+
+// ── Real-time SSE Endpoints ─────────────────────────────────────────────────
+
+// SSE connection for a project
+app.get('/api/projects/:id/live', requireAuth, (req, res) => {
+  const access = getProjectAccess(req.params.id, req.session.userId);
+  if (!access) return res.status(404).json({ error: 'Project not found' });
+
+  const projectId = String(req.params.id);
+  const clientId = crypto.randomBytes(8).toString('hex');
+
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive'
+  });
+
+  // Register client
+  if (!projectClients.has(projectId)) {
+    projectClients.set(projectId, new Map());
+  }
+  projectClients.get(projectId).set(clientId, {
+    res,
+    userId: req.session.userId,
+    username: req.session.username
+  });
+
+  // Send initial connection event
+  const activeUsers = getActiveUsers(projectId);
+  res.write(`event: connected\ndata: ${JSON.stringify({ clientId, activeUsers })}\n\n`);
+
+  // Broadcast user joined
+  broadcastToProject(projectId, 'user-joined', {
+    userId: req.session.userId,
+    username: req.session.username,
+    activeUsers
+  }, req.session.userId);
+
+  // Heartbeat to keep connection alive
+  const heartbeat = setInterval(() => {
+    res.write(': heartbeat\n\n');
+  }, 15000);
+
+  // Cleanup on disconnect
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    const clients = projectClients.get(projectId);
+    if (clients) {
+      clients.delete(clientId);
+      if (clients.size === 0) {
+        projectClients.delete(projectId);
+      } else {
+        const activeUsers = getActiveUsers(projectId);
+        broadcastToProject(projectId, 'user-left', {
+          userId: req.session.userId,
+          username: req.session.username,
+          activeUsers
+        });
+      }
+    }
+  });
+});
+
+// Broadcast cursor position
+app.post('/api/projects/:id/cursor', requireAuth, (req, res) => {
+  const { line, column } = req.body;
+  broadcastToProject(req.params.id, 'cursor', {
+    userId: req.session.userId,
+    username: req.session.username,
+    line, column
+  }, req.session.userId);
+  res.json({ ok: true });
+});
+
+// Broadcast code change
+app.post('/api/projects/:id/live-edit', requireAuth, (req, res) => {
+  const { code, line, column } = req.body;
+  broadcastToProject(req.params.id, 'code-update', {
+    userId: req.session.userId,
+    username: req.session.username,
+    code, line, column
+  }, req.session.userId);
+  res.json({ ok: true });
 });
 
 // ── Collaboration Routes ────────────────────────────────────────────────────
@@ -617,11 +730,11 @@ app.get('/api/users/search', requireAuth, (req, res) => {
 
 function getDefaultCode(language) {
   const defaults = {
-    html: `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>My Project</title>\n  <style>\n    body { font-family: system-ui; background: #0a0a1a; color: #00ff88; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }\n    h1 { text-shadow: 0 0 20px rgba(0,255,136,0.5); }\n  </style>\n</head>\n<body>\n  <h1>Hello, NeonCode! ⚡</h1>\n</body>\n</html>`,
-    css: `/* NeonCode CSS */\n:root {\n  --neon-green: #00ff88;\n  --neon-blue: #00d4ff;\n  --dark-bg: #0a0a1a;\n}\n\nbody {\n  background: var(--dark-bg);\n  color: var(--neon-green);\n  font-family: 'Courier New', monospace;\n}\n\n.glow {\n  text-shadow: 0 0 10px var(--neon-blue);\n}`,
-    javascript: `// NeonCode JavaScript\nconsole.log('⚡ Welcome to NeonCode!');\n\nfunction greet(name) {\n  return \`Hello, \${name}! Welcome to the future.\`;\n}\n\nconsole.log(greet('Developer'));`,
-    python: `# NeonCode Python\nprint("⚡ Welcome to NeonCode!")\n\ndef greet(name):\n    return f"Hello, {name}! Welcome to the future."\n\nprint(greet("Developer"))`,
-    sql: `-- NeonCode SQL\nCREATE TABLE IF NOT EXISTS users (\n  id INTEGER PRIMARY KEY,\n  username TEXT NOT NULL,\n  email TEXT UNIQUE,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\nINSERT INTO users (username, email) VALUES ('neo', 'neo@neoncode.dev');\n\nSELECT * FROM users;`
+    html: `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>My Project</title>\n  <style>\n    body { font-family: system-ui; background: #0a0a1a; color: #00ff88; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }\n    h1 { text-shadow: 0 0 20px rgba(0,255,136,0.5); }\n  </style>\n</head>\n<body>\n  <h1>Hello, CODE_LAB! ⚡</h1>\n</body>\n</html>`,
+    css: `/* CODE_LAB CSS */\n:root {\n  --neon-green: #00ff88;\n  --neon-blue: #00d4ff;\n  --dark-bg: #0a0a1a;\n}\n\nbody {\n  background: var(--dark-bg);\n  color: var(--neon-green);\n  font-family: 'Courier New', monospace;\n}\n\n.glow {\n  text-shadow: 0 0 10px var(--neon-blue);\n}`,
+    javascript: `// CODE_LAB JavaScript\nconsole.log('⚡ Welcome to CODE_LAB!');\n\nfunction greet(name) {\n  return \`Hello, \${name}! Welcome to the future.\`;\n}\n\nconsole.log(greet('Developer'));`,
+    python: `# CODE_LAB Python\nprint("⚡ Welcome to CODE_LAB!")\n\ndef greet(name):\n    return f"Hello, {name}! Welcome to the future."\n\nprint(greet("Developer"))`,
+    sql: `-- CODE_LAB SQL\nCREATE TABLE IF NOT EXISTS users (\n  id INTEGER PRIMARY KEY,\n  username TEXT NOT NULL,\n  email TEXT UNIQUE,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\nINSERT INTO users (username, email) VALUES ('neo', 'neo@codelab.dev');\n\nSELECT * FROM users;`
   };
   return defaults[language] || defaults.html;
 }
@@ -655,7 +768,7 @@ function generateIndexHtml(project, files) {
   <style>${cssContent}</style>
 </head>
 <body>
-  ${htmlBody || '<h1>' + project.name + '</h1><p>Created with NeonCode Editor</p>'}
+  ${htmlBody || '<h1>' + project.name + '</h1><p>Created with CODE_LAB Editor</p>'}
   <script>${jsContent}</script>
 </body>
 </html>`;
@@ -672,7 +785,7 @@ app.get('*', (req, res) => {
 
 // ── Start Server ────────────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n  ⚡ NeonCode Editor running at http://localhost:${PORT}`);
+  console.log(`\n  ⚡ CODE_LAB Editor running at http://localhost:${PORT}`);
   console.log(`  📝 Languages: HTML, CSS, JavaScript, Python, SQL`);
   console.log(`  👥 Max users: ${MAX_USERS}`);
   console.log(`  💾 Database: SQLite (${path.join(dataDir, 'codeeditor.db')})\n`);

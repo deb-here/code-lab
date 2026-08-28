@@ -1,5 +1,5 @@
 {
-  "name": "neon-code-editor",
+  "name": "code-lab",
   "version": "1.0.0",
   "description": "Futuristic multi-language online code editor with GitHub integration",
   "main": "server.js",

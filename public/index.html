@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NeonCode ⚡ Futuristic Code Editor</title>
+  <title>CODE_LAB ⚡ Futuristic Code Editor</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
   <style>
     /* ── CSS Reset & Base ─────────────────────────────────────────────── */
@@ -862,6 +862,60 @@
       align-items: center;
       gap: 16px;
     }
+
+    /* ── Active Users Bar ────────────────────────────────────────────── */
+    .active-users {
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    .active-user-dot {
+      width: 26px; height: 26px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 700;
+      color: var(--bg-primary);
+      position: relative;
+      cursor: default;
+    }
+
+    .active-user-dot .tooltip {
+      display: none; position: absolute; bottom: 100%;
+      left: 50%; transform: translateX(-50%);
+      background: var(--bg-card); border: 1px solid var(--border-color);
+      color: var(--text-primary); padding: 4px 8px;
+      border-radius: 4px; font-size: 0.7rem;
+      white-space: nowrap; z-index: 10;
+      margin-bottom: 4px;
+    }
+
+    .active-user-dot:hover .tooltip { display: block; }
+
+    .active-user-dot.pulse {
+      animation: userPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes userPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.4); }
+      50% { box-shadow: 0 0 0 6px rgba(0,255,136,0); }
+    }
+
+    /* Remote cursor line highlight */
+    .remote-cursor-line {
+      border-left: 2px solid;
+      margin-left: 3px;
+    }
+
+    .remote-cursor-label {
+      position: absolute;
+      top: -18px; left: 0;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      white-space: nowrap;
+      z-index: 10;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
@@ -873,7 +927,7 @@
 <div id="page-auth" class="auth-page">
   <div class="auth-container">
     <div class="auth-header">
-      <h1>NEONCODE</h1>
+      <h1>CODE_LAB</h1>
       <p>⚡ Futuristic Code Editor</p>
     </div>
 
@@ -890,10 +944,10 @@
         <input type="password" id="login-password" class="form-input" placeholder="••••••••" autocomplete="current-password">
       </div>
       <button class="btn btn-primary btn-lg" style="width:100%" onclick="doLogin()">
-        ⚡ Enter the Grid
+        ⚡ Enter the Lab
       </button>
       <div class="auth-toggle">
-        New to NeonCode? <a onclick="showRegister()">Create Account</a>
+        New to CODE_LAB? <a onclick="showRegister()">Create Account</a>
       </div>
     </div>
 
@@ -907,14 +961,14 @@
       </div>
       <div class="form-group">
         <label class="form-label">Email</label>
-        <input type="email" id="reg-email" class="form-input" placeholder="you@neoncode.dev" autocomplete="email">
+        <input type="email" id="reg-email" class="form-input" placeholder="you@codelab.dev" autocomplete="email">
       </div>
       <div class="form-group">
         <label class="form-label">Password (min 6 chars)</label>
         <input type="password" id="reg-password" class="form-input" placeholder="••••••••" autocomplete="new-password">
       </div>
       <button class="btn btn-primary btn-lg" style="width:100%" onclick="doRegister()">
-        🚀 Join the Grid
+        🚀 Join the Lab
       </button>
       <div class="auth-toggle">
         Already have an account? <a onclick="showLogin()">Sign In</a>
@@ -929,7 +983,7 @@
   <!-- Navbar -->
   <nav class="navbar">
     <div class="navbar-inner">
-      <a class="logo" onclick="showDashboard()">NEON<span>CODE</span> ⚡</a>
+      <a class="logo" onclick="showDashboard()">CODE<span>_LAB</span> ⚡</a>
       <div class="nav-actions">
         <button class="btn btn-secondary btn-sm" onclick="showDashboard()">📁 Projects</button>
         <button class="btn btn-secondary btn-sm" onclick="showSettings()">⚙️ Settings</button>
@@ -1054,7 +1108,8 @@
       <!-- Edit info bar -->
       <div id="edit-info-bar" style="display:none; padding:6px 16px; background:var(--bg-tertiary); border-bottom:1px solid var(--border-color); font-size:0.78rem; color:var(--text-secondary); display:flex; align-items:center; gap:16px;">
         <span id="last-editor-info"></span>
-        <span style="margin-left:auto">
+        <div id="active-users-bar" class="active-users" style="margin-left:auto; margin-right:8px;"></div>
+        <span>
           <button class="toolbar-btn btn-sm" onclick="toggleHistory()" id="btn-history">📜 History</button>
         </span>
       </div>
@@ -1285,7 +1340,7 @@ async function doRegister() {
     const data = await api('/api/register', { method: 'POST', body: { username, email, password } });
     currentUser = data.user;
     enterApp();
-    toast('Account created! Welcome to NeonCode!', 'success');
+    toast('Account created! Welcome to CODE_LAB!', 'success');
   } catch (err) {
     errEl.textContent = err.message;
     errEl.classList.remove('hidden');
@@ -1324,6 +1379,7 @@ function hideAllViews() {
 
 async function showDashboard() {
   hideAllViews();
+  disconnectSSE();
   document.getElementById('view-dashboard').classList.remove('hidden');
   currentProject = null;
   await loadProjects();
@@ -1399,6 +1455,9 @@ async function showEditor(projectId) {
     if (['html', 'css', 'javascript'].includes(currentProject.language)) {
       setTimeout(refreshPreview, 300);
     }
+
+    // Connect to real-time collaboration
+    connectSSE(currentProject.id);
   } catch (err) {
     toast('Failed to load project: ' + err.message, 'error');
     showDashboard();
@@ -1518,7 +1577,7 @@ function initMonaco() {
 
     require(['vs/editor/editor.main'], function () {
       // Define custom futuristic theme
-      monaco.editor.defineTheme('neoncode', {
+      monaco.editor.defineTheme('codelab', {
         base: 'vs-dark',
         inherit: true,
         rules: [
@@ -1559,7 +1618,7 @@ function initMonaco() {
       editor = monaco.editor.create(document.getElementById('editor-container'), {
         value: '',
         language: 'html',
-        theme: 'neoncode',
+        theme: 'codelab',
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
         fontSize: 14,
         fontLigatures: true,
@@ -1583,10 +1642,14 @@ function initMonaco() {
       editor.onDidChangeCursorPosition((e) => {
         document.getElementById('cursor-pos').textContent =
           `Ln ${e.position.lineNumber}, Col ${e.position.column}`;
+        // Broadcast cursor to collaborators
+        broadcastCursor(e.position.lineNumber, e.position.column);
       });
 
       // Auto-save on content change
       editor.onDidChangeModelContent(() => {
+        if (isRemoteUpdate) return; // Don't echo remote changes
+
         clearTimeout(autoSaveTimer);
         document.getElementById('save-status').textContent = '● Modified';
         document.getElementById('save-status').className = 'save-status saving';
@@ -1594,6 +1657,9 @@ function initMonaco() {
         autoSaveTimer = setTimeout(() => {
           if (currentProject) saveProject(true);
         }, 2000);
+
+        // Broadcast live edit to collaborators
+        broadcastLiveEdit(editor.getValue());
 
         // Live preview for web languages
         if (currentProject && ['html', 'css', 'javascript'].includes(currentProject.language)) {
@@ -1747,7 +1813,7 @@ function runPythonSimulated(code) {
   const output = document.getElementById('output-content');
   output.innerHTML = '';
 
-  addOutput('⚡ NeonCode Python Interpreter (simulated)', 'info');
+  addOutput('⚡ CODE_LAB Python Interpreter (simulated)', 'info');
   addOutput('────────────────────────────────────', 'info');
 
   // Simple Python interpreter simulation
@@ -1801,7 +1867,7 @@ function runSqlSimulated(code) {
   const output = document.getElementById('output-content');
   output.innerHTML = '';
 
-  addOutput('⚡ NeonCode SQL Console', 'info');
+  addOutput('⚡ CODE_LAB SQL Console', 'info');
   addOutput('────────────────────────────────────', 'info');
 
   const statements = code.split(';').filter(s => s.trim());
@@ -1962,6 +2028,188 @@ function formatTimeAgo(dateStr) {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// REAL-TIME COLLABORATION (SSE)
+// ══════════════════════════════════════════════════════════════════
+let sseConnection = null;
+let activeUsers = [];
+let remoteCursors = {}; // userId -> { line, column, username }
+let cursorDecorations = []; // Monaco decoration IDs
+let isRemoteUpdate = false; // Flag to prevent echo
+let cursorThrottle = null;
+
+const USER_COLORS = [
+  '#ff2d95', '#00d4ff', '#ffd700', '#b44dff',
+  '#ff8c00', '#00ff88', '#ff6b6b', '#4da6ff',
+  '#ff69b4', '#7b68ee'
+];
+
+function getUserColor(userId) {
+  return USER_COLORS[userId % USER_COLORS.length];
+}
+
+function connectSSE(projectId) {
+  disconnectSSE(); // Clean up any existing connection
+
+  sseConnection = new EventSource(`/api/projects/${projectId}/live`);
+
+  sseConnection.addEventListener('connected', (e) => {
+    const data = JSON.parse(e.data);
+    activeUsers = data.activeUsers;
+    renderActiveUsers();
+  });
+
+  sseConnection.addEventListener('user-joined', (e) => {
+    const data = JSON.parse(e.data);
+    activeUsers = data.activeUsers;
+    renderActiveUsers();
+    toast(`${data.username} joined`, 'info');
+  });
+
+  sseConnection.addEventListener('user-left', (e) => {
+    const data = JSON.parse(e.data);
+    activeUsers = data.activeUsers;
+    // Remove their cursor
+    delete remoteCursors[data.userId];
+    updateRemoteCursorDecorations();
+    renderActiveUsers();
+  });
+
+  sseConnection.addEventListener('cursor', (e) => {
+    const data = JSON.parse(e.data);
+    remoteCursors[data.userId] = {
+      line: data.line,
+      column: data.column,
+      username: data.username
+    };
+    updateRemoteCursorDecorations();
+  });
+
+  sseConnection.addEventListener('code-update', (e) => {
+    const data = JSON.parse(e.data);
+    if (!editor || !currentProject) return;
+
+    // Apply remote change without triggering our own broadcast
+    isRemoteUpdate = true;
+    const currentPos = editor.getPosition();
+    editor.setValue(data.code);
+    if (currentPos) editor.setPosition(currentPos);
+    isRemoteUpdate = false;
+
+    // Update preview if web language
+    if (['html', 'css', 'javascript'].includes(currentProject.language)) {
+      clearTimeout(window._previewTimer);
+      window._previewTimer = setTimeout(refreshPreview, 300);
+    }
+
+    // Flash the last editor info
+    document.getElementById('last-editor-info').innerHTML =
+      `✏️ Live edit by <strong style="color:${getUserColor(data.userId)}">${escHtml(data.username)}</strong> · just now`;
+  });
+
+  sseConnection.onerror = () => {
+    // Auto-reconnect is handled by EventSource
+  };
+}
+
+function disconnectSSE() {
+  if (sseConnection) {
+    sseConnection.close();
+    sseConnection = null;
+  }
+  activeUsers = [];
+  remoteCursors = {};
+  cursorDecorations = [];
+}
+
+function renderActiveUsers() {
+  const bar = document.getElementById('active-users-bar');
+  if (!bar) return;
+
+  if (activeUsers.length <= 1) {
+    bar.innerHTML = '<span style="font-size:0.75rem; color:var(--text-dim)">Only you</span>';
+    return;
+  }
+
+  bar.innerHTML = activeUsers.map(u => {
+    const color = getUserColor(u.userId);
+    const isMe = u.userId === currentUser.id;
+    return `
+      <div class="active-user-dot ${isMe ? '' : 'pulse'}" style="background:${color}">
+        ${u.username[0].toUpperCase()}
+        <div class="tooltip">${escHtml(u.username)}${isMe ? ' (you)' : ''}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function updateRemoteCursorDecorations() {
+  if (!editor) return;
+
+  const newDecorations = [];
+  for (const [userId, cursor] of Object.entries(remoteCursors)) {
+    const color = getUserColor(Number(userId));
+    newDecorations.push({
+      range: new monaco.Range(cursor.line, 1, cursor.line, 1),
+      options: {
+        isWholeLine: true,
+        className: 'remote-cursor-line',
+        glyphMarginClassName: '',
+        overviewRuler: { color, position: monaco.editor.OverviewRulerLane.Full },
+        minimap: { color, position: monaco.editor.MinimapPosition.Inline },
+        stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+        before: {
+          content: ' ' + cursor.username,
+          inlineClassName: 'remote-cursor-label',
+        },
+        linesDecorationsClassName: `remote-cursor-line`,
+      }
+    });
+  }
+
+  cursorDecorations = editor.deltaDecorations(cursorDecorations, newDecorations);
+
+  // Also inject dynamic CSS for cursor colors
+  let styleEl = document.getElementById('remote-cursor-styles');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'remote-cursor-styles';
+    document.head.appendChild(styleEl);
+  }
+  let css = '';
+  for (const [userId, cursor] of Object.entries(remoteCursors)) {
+    const color = getUserColor(Number(userId));
+    css += `.remote-cursor-line { border-left-color: ${color}; }\n`;
+  }
+  styleEl.textContent = css;
+}
+
+function broadcastCursor(line, column) {
+  if (!currentProject || isRemoteUpdate) return;
+  clearTimeout(cursorThrottle);
+  cursorThrottle = setTimeout(() => {
+    fetch(`/api/projects/${currentProject.id}/cursor`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ line, column })
+    }).catch(() => {});
+  }, 100);
+}
+
+let liveEditThrottle = null;
+function broadcastLiveEdit(code) {
+  if (!currentProject || isRemoteUpdate) return;
+  clearTimeout(liveEditThrottle);
+  liveEditThrottle = setTimeout(() => {
+    const pos = editor?.getPosition();
+    fetch(`/api/projects/${currentProject.id}/live-edit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, line: pos?.lineNumber, column: pos?.column })
+    }).catch(() => {});
+  }, 300);
 }
 
 // ══════════════════════════════════════════════════════════════════
