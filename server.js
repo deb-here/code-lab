@@ -42,9 +42,23 @@ db.exec(`
     github_repo TEXT,
     github_url TEXT,
     is_hosted INTEGER DEFAULT 0,
+    last_edited_by INTEGER,
+    last_edited_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (last_edited_by) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS edit_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    action TEXT DEFAULT 'edit',
+    summary TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id)
   );
 
   CREATE TABLE IF NOT EXISTS collaborators (
@@ -228,7 +242,19 @@ app.get('/api/projects', requireAuth, (req, res) => {
     ORDER BY p.updated_at DESC
   `).all(req.session.userId);
 
-  res.json({ projects: owned, shared_projects: shared });
+  // Attach last editor username to each project
+  const addEditorInfo = (projects) => {
+    return projects.map(p => {
+      let lastEditorName = null;
+      if (p.last_edited_by) {
+        const u = db.prepare('SELECT username FROM users WHERE id = ?').get(p.last_edited_by);
+        if (u) lastEditorName = u.username;
+      }
+      return { ...p, last_editor_name: lastEditorName };
+    });
+  };
+
+  res.json({ projects: addEditorInfo(owned), shared_projects: addEditorInfo(shared) });
 });
 
 app.post('/api/projects', requireAuth, (req, res) => {
@@ -261,7 +287,24 @@ app.get('/api/projects/:id', requireAuth, (req, res) => {
   `).all(access.project.id);
   const owner = db.prepare('SELECT username FROM users WHERE id = ?').get(access.project.user_id);
 
-  res.json({ project: access.project, files, role: access.role, collaborators, owner: owner?.username });
+  // Get last editor info
+  let lastEditor = null;
+  if (access.project.last_edited_by) {
+    const editorUser = db.prepare('SELECT username FROM users WHERE id = ?').get(access.project.last_edited_by);
+    if (editorUser) {
+      lastEditor = { username: editorUser.username, at: access.project.last_edited_at };
+    }
+  }
+
+  // Get recent edit history (last 20)
+  const editHistory = db.prepare(`
+    SELECT h.action, h.summary, h.created_at, u.username
+    FROM edit_history h JOIN users u ON u.id = h.user_id
+    WHERE h.project_id = ?
+    ORDER BY h.created_at DESC LIMIT 20
+  `).all(access.project.id);
+
+  res.json({ project: access.project, files, role: access.role, collaborators, owner: owner?.username, lastEditor, editHistory });
 });
 
 app.put('/api/projects/:id', requireAuth, (req, res) => {
@@ -272,8 +315,13 @@ app.put('/api/projects/:id', requireAuth, (req, res) => {
     if (!canEdit(access.role)) return res.status(403).json({ error: 'You have view-only access' });
 
     db.prepare(
-      'UPDATE projects SET name = ?, description = ?, language = ?, code = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-    ).run(name || access.project.name, description ?? access.project.description, language || access.project.language, code ?? access.project.code, access.project.id);
+      'UPDATE projects SET name = ?, description = ?, language = ?, code = ?, last_edited_by = ?, last_edited_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(name || access.project.name, description ?? access.project.description, language || access.project.language, code ?? access.project.code, req.session.userId, access.project.id);
+
+    // Log edit history
+    db.prepare(
+      'INSERT INTO edit_history (project_id, user_id, action, summary) VALUES (?, ?, ?, ?)'
+    ).run(access.project.id, req.session.userId, 'edit', `Edited by ${req.session.username}`);
 
     const updated = db.prepare('SELECT * FROM projects WHERE id = ?').get(access.project.id);
     res.json({ success: true, project: updated });
@@ -442,6 +490,11 @@ app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
     db.prepare(
       'UPDATE projects SET github_repo = ?, github_url = ?, is_hosted = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
     ).run(repoFullName, repoUrl, project.id);
+
+    // Log push to edit history
+    db.prepare(
+      'INSERT INTO edit_history (project_id, user_id, action, summary) VALUES (?, ?, ?, ?)'
+    ).run(project.id, req.session.userId, 'push', `Pushed to GitHub by ${req.session.username}`);
 
     res.json({
       success: true,

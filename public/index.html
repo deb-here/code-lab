@@ -790,6 +790,78 @@
       border-color: var(--neon-green);
       color: var(--neon-green);
     }
+
+    /* ── Edit History Panel ──────────────────────────────────────────── */
+    .history-panel {
+      width: 280px; flex-shrink: 0;
+      background: var(--bg-card);
+      border-left: 1px solid var(--border-color);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+
+    .history-panel .panel-header {
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 10px 14px;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.8rem;
+      color: var(--neon-purple);
+    }
+
+    .history-list {
+      flex: 1; overflow-y: auto; padding: 8px;
+    }
+
+    .history-item {
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      margin-bottom: 6px;
+      background: var(--bg-secondary);
+      transition: var(--transition);
+    }
+
+    .history-item:hover {
+      border-color: rgba(180,77,255,0.3);
+    }
+
+    .history-item .h-user {
+      font-weight: 600; font-size: 0.85rem;
+      color: var(--neon-green);
+    }
+
+    .history-item .h-action {
+      font-size: 0.75rem; color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .history-item .h-time {
+      font-size: 0.7rem; color: var(--text-dim);
+      margin-top: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .h-action-badge {
+      display: inline-block;
+      padding: 1px 6px; border-radius: 4px;
+      font-size: 0.65rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .h-badge-edit { background: rgba(0,255,136,0.15); color: var(--neon-green); }
+    .h-badge-push { background: rgba(180,77,255,0.15); color: var(--neon-purple); }
+
+    /* ── Edit Info Bar ───────────────────────────────────────────────── */
+    .edit-info-bar {
+      padding: 6px 16px;
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
   </style>
 </head>
 <body>
@@ -979,6 +1051,13 @@
     </div>
 
     <div class="editor-body">
+      <!-- Edit info bar -->
+      <div id="edit-info-bar" style="display:none; padding:6px 16px; background:var(--bg-tertiary); border-bottom:1px solid var(--border-color); font-size:0.78rem; color:var(--text-secondary); display:flex; align-items:center; gap:16px;">
+        <span id="last-editor-info"></span>
+        <span style="margin-left:auto">
+          <button class="toolbar-btn btn-sm" onclick="toggleHistory()" id="btn-history">📜 History</button>
+        </span>
+      </div>
       <div class="editor-panel">
         <div class="panel-header">
           <span><span class="dot dot-green"></span>EDITOR</span>
@@ -1004,6 +1083,14 @@
         </div>
         <div class="output-content" id="output-content">
           <span style="color:var(--text-dim)">// Run your code to see output here...</span>
+        </div>
+      </div>
+
+      <!-- History Panel -->
+      <div id="history-panel" class="history-panel hidden">
+        <div class="panel-header">📜 Edit History</div>
+        <div class="history-list" id="history-list">
+          <p style="color:var(--text-dim); font-size:0.8rem; padding:12px;">No edits yet</p>
         </div>
       </div>
     </div>
@@ -1085,6 +1172,7 @@ let currentUser = null;
 let currentProject = null;
 let currentRole = null;
 let currentCollaborators = [];
+let currentEditHistory = [];
 let projects = [];
 let sharedProjects = [];
 let editor = null;
@@ -1267,6 +1355,7 @@ async function showEditor(projectId) {
     currentProject = data.project;
     currentRole = data.role || 'owner';
     currentCollaborators = data.collaborators || [];
+    currentEditHistory = data.editHistory || [];
 
     document.getElementById('editor-project-name').textContent = currentProject.name +
       (currentRole !== 'owner' ? ` (by ${data.owner})` : '');
@@ -1277,6 +1366,21 @@ async function showEditor(projectId) {
     roleBadge.style.display = 'inline-block';
     roleBadge.className = `role-indicator ${currentRole}`;
     roleBadge.textContent = currentRole;
+
+    // Show last editor info
+    const infoBar = document.getElementById('edit-info-bar');
+    const lastEditorEl = document.getElementById('last-editor-info');
+    if (data.lastEditor) {
+      lastEditorEl.innerHTML = `✏️ Last edited by <strong style="color:var(--neon-green)">${escHtml(data.lastEditor.username)}</strong> · ${formatTimeAgo(data.lastEditor.at)}`;
+      infoBar.style.display = 'flex';
+    } else {
+      lastEditorEl.innerHTML = '✨ No edits yet';
+      infoBar.style.display = 'flex';
+    }
+
+    // Reset history panel
+    document.getElementById('history-panel').classList.add('hidden');
+    renderEditHistory();
 
     // Show/hide controls based on role
     const isReadOnly = currentRole === 'viewer';
@@ -1351,6 +1455,7 @@ function renderProjectCard(p, role) {
         ${role !== 'owner' ? `<span class="shared-badge">👥 ${role}</span>` : ''}
         <span class="project-date">${formatDate(p.updated_at)}</span>
       </div>
+      ${p.last_editor_name ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:8px;">✏️ Last edit by <strong style="color:var(--neon-green)">${escHtml(p.last_editor_name)}</strong> · ${p.last_edited_at ? formatTimeAgo(p.last_edited_at) : ''}</div>` : ''}
       <div style="margin-top:12px; display:flex; gap:8px;">
         ${p.github_url ? `<a href="${escHtml(p.github_url)}" target="_blank" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">🐙 Repo</a>` : ''}
         ${role === 'owner' ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteProject(${p.id}, '${escHtml(p.name)}')">🗑</button>` : ''}
@@ -1561,6 +1666,10 @@ async function saveProject(silent = false) {
     currentProject.code = code;
     statusEl.textContent = '✓ Saved';
     statusEl.className = 'save-status saved';
+
+    // Update last editor display
+    document.getElementById('last-editor-info').innerHTML =
+      `✏️ Last edited by <strong style="color:var(--neon-green)">${escHtml(currentUser.username)}</strong> · just now`;
 
     if (!silent) toast('Project saved!', 'success');
   } catch (err) {
@@ -1812,6 +1921,47 @@ async function pushToGitHub() {
   } catch (err) {
     toast('GitHub push failed: ' + err.message, 'error');
   }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// EDIT HISTORY
+// ══════════════════════════════════════════════════════════════════
+function toggleHistory() {
+  const panel = document.getElementById('history-panel');
+  panel.classList.toggle('hidden');
+}
+
+function renderEditHistory() {
+  const list = document.getElementById('history-list');
+  if (currentEditHistory.length === 0) {
+    list.innerHTML = '<p style="color:var(--text-dim); font-size:0.8rem; padding:12px;">No edits yet</p>';
+    return;
+  }
+
+  list.innerHTML = currentEditHistory.map(h => `
+    <div class="history-item">
+      <div style="display:flex; align-items:center; gap:6px;">
+        <span class="h-user">${escHtml(h.username)}</span>
+        <span class="h-action-badge ${h.action === 'push' ? 'h-badge-push' : 'h-badge-edit'}">${h.action}</span>
+      </div>
+      <div class="h-action">${escHtml(h.summary)}</div>
+      <div class="h-time">${formatTimeAgo(h.created_at)}</div>
+    </div>
+  `).join('');
+}
+
+function formatTimeAgo(dateStr) {
+  if (!dateStr) return '';
+  const now = new Date();
+  const d = new Date(dateStr + (dateStr.includes('Z') ? '' : 'Z'));
+  const diff = Math.floor((now - d) / 1000);
+
+  if (diff < 10) return 'just now';
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 // ══════════════════════════════════════════════════════════════════
