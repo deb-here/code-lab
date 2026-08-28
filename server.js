@@ -225,12 +225,20 @@ app.post('/api/logout', (req, res) => {
 
 app.post('/api/guest', (req, res) => {
   try {
+    const { displayName } = req.body;
     const guestId = crypto.randomBytes(4).toString('hex');
-    const username = `guest_${guestId}`;
-    const email = `${username}@guest.codelab`;
+    const username = displayName ? displayName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') : `guest_${guestId}`;
+    const email = `guest_${guestId}@guest.codelab`;
     const password = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10);
 
-    // Guests don't count toward the 10-user limit
+    // Check if chosen name is taken
+    if (displayName) {
+      const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+      if (existing) {
+        return res.status(409).json({ error: `Name "${username}" is taken. Try another.` });
+      }
+    }
+
     const result = db.prepare('INSERT INTO users (username, email, password) VALUES (?, ?, ?)').run(username, email, password);
 
     req.session.userId = result.lastInsertRowid;

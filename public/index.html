@@ -950,11 +950,14 @@
         New to CODE_LAB? <a onclick="showRegister()">Create Account</a>
       </div>
       <div style="text-align:center; margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color);">
-        <button class="btn btn-secondary" style="width:100%" onclick="doGuestLogin()">
-          👤 Continue as Guest
-        </button>
-        <p style="font-size:0.75rem; color:var(--text-dim); margin-top:8px;">
-          No signup needed — try CODE_LAB instantly
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <input type="text" id="guest-name" class="form-input" placeholder="Your name (e.g. john)" style="flex:1" maxlength="20">
+          <button class="btn btn-secondary" onclick="doGuestLogin()">
+            👤 Guest
+          </button>
+        </div>
+        <p style="font-size:0.75rem; color:var(--text-dim);">
+          Pick a name so teammates can find you — or leave blank for random
         </p>
       </div>
     </div>
@@ -1366,12 +1369,13 @@ async function doLogout() {
 
 async function doGuestLogin() {
   try {
-    const data = await api('/api/guest', { method: 'POST' });
+    const displayName = document.getElementById('guest-name').value.trim();
+    const data = await api('/api/guest', { method: 'POST', body: { displayName: displayName || null } });
     currentUser = data.user;
     enterApp();
-    toast('Welcome, guest! Create projects and explore CODE_LAB.', 'info');
+    toast(`Welcome, ${data.user.username}! Create projects and explore CODE_LAB.`, 'info');
   } catch (err) {
-    toast('Guest login failed: ' + err.message, 'error');
+    toast(err.message, 'error');
   }
 }
 
@@ -2356,6 +2360,9 @@ document.getElementById('login-password').addEventListener('keydown', (e) => {
 });
 document.getElementById('reg-password').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') doRegister();
+});
+document.getElementById('guest-name').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doGuestLogin();
 });
 
 // Close modal on overlay click
