@@ -1,0 +1,1746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeonCode ⚡ Futuristic Code Editor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ── CSS Reset & Base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #050510;
+      --bg-secondary: #0a0a1f;
+      --bg-tertiary: #10102a;
+      --bg-card: #0d0d25;
+      --neon-green: #00ff88;
+      --neon-blue: #00d4ff;
+      --neon-purple: #b44dff;
+      --neon-pink: #ff2d95;
+      --neon-orange: #ff8c00;
+      --neon-yellow: #ffd700;
+      --text-primary: #e8e8ff;
+      --text-secondary: #8888aa;
+      --text-dim: #555577;
+      --border-color: #1a1a3a;
+      --glow-green: 0 0 20px rgba(0,255,136,0.3);
+      --glow-blue: 0 0 20px rgba(0,212,255,0.3);
+      --glow-purple: 0 0 20px rgba(180,77,255,0.3);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Animated Background ──────────────────────────────────────────── */
+    .bg-grid {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background-image:
+        linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .bg-orbs {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 0; pointer-events: none; overflow: hidden;
+    }
+
+    .bg-orbs::before {
+      content: ''; position: absolute; top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: radial-gradient(ellipse at 20% 50%, rgba(0,255,136,0.06) 0%, transparent 50%),
+                  radial-gradient(ellipse at 80% 20%, rgba(0,212,255,0.06) 0%, transparent 50%),
+                  radial-gradient(ellipse at 50% 80%, rgba(180,77,255,0.04) 0%, transparent 50%);
+      animation: orbFloat 20s ease-in-out infinite;
+    }
+
+    @keyframes orbFloat {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      33% { transform: translate(30px, -30px) rotate(120deg); }
+      66% { transform: translate(-20px, 20px) rotate(240deg); }
+    }
+
+    /* ── Scrollbar ────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+    ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--neon-green); }
+
+    /* ── Utility ──────────────────────────────────────────────────────── */
+    .hidden { display: none !important; }
+
+    .container {
+      position: relative; z-index: 1;
+      max-width: 1400px; margin: 0 auto; padding: 0 24px;
+    }
+
+    /* ── Navigation ───────────────────────────────────────────────────── */
+    .navbar {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(5,5,16,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 24px;
+    }
+
+    .navbar-inner {
+      max-width: 1400px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+
+    .logo {
+      font-family: 'Orbitron', monospace;
+      font-weight: 900; font-size: 1.5rem;
+      background: linear-gradient(135deg, var(--neon-green), var(--neon-blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .logo span { font-weight: 400; opacity: 0.7; }
+
+    .nav-actions { display: flex; gap: 12px; align-items: center; }
+
+    .nav-user {
+      display: flex; align-items: center; gap: 10px;
+      color: var(--text-secondary); font-size: 0.9rem;
+    }
+
+    .nav-user .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--neon-green), var(--neon-blue));
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.85rem; color: var(--bg-primary);
+    }
+
+    /* ── Buttons ──────────────────────────────────────────────────────── */
+    .btn {
+      padding: 10px 20px; border-radius: var(--radius-sm);
+      border: none; cursor: pointer; font-family: 'Inter', sans-serif;
+      font-size: 0.9rem; font-weight: 600;
+      transition: var(--transition); display: inline-flex;
+      align-items: center; gap: 8px; text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--neon-green), #00cc6a);
+      color: var(--bg-primary);
+      box-shadow: var(--glow-green);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(0,255,136,0.5);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+    }
+    .btn-secondary:hover {
+      border-color: var(--neon-blue);
+      color: var(--neon-blue);
+      box-shadow: var(--glow-blue);
+    }
+
+    .btn-danger {
+      background: rgba(255,45,45,0.1);
+      border: 1px solid rgba(255,45,45,0.3);
+      color: #ff4d4d;
+    }
+    .btn-danger:hover {
+      background: rgba(255,45,45,0.2);
+      box-shadow: 0 0 20px rgba(255,45,45,0.3);
+    }
+
+    .btn-github {
+      background: linear-gradient(135deg, #333, #555);
+      color: #fff;
+    }
+    .btn-github:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 20px rgba(255,255,255,0.1);
+    }
+
+    .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+    .btn-lg { padding: 14px 32px; font-size: 1rem; }
+
+    .btn:disabled {
+      opacity: 0.5; cursor: not-allowed; transform: none !important;
+    }
+
+    /* ── Forms ────────────────────────────────────────────────────────── */
+    .form-group { margin-bottom: 20px; }
+
+    .form-label {
+      display: block; margin-bottom: 8px;
+      font-size: 0.85rem; font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+
+    .form-input {
+      width: 100%; padding: 12px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      transition: var(--transition);
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--neon-green);
+      box-shadow: var(--glow-green);
+    }
+
+    .form-input::placeholder { color: var(--text-dim); }
+
+    select.form-input {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2388a' viewBox='0 0 16 16'%3E%3Cpath d='M8 12L2 6h12z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+    }
+
+    /* ── Cards ────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 24px;
+      transition: var(--transition);
+    }
+
+    .card:hover {
+      border-color: rgba(0,255,136,0.3);
+      box-shadow: var(--glow-green);
+    }
+
+    /* ── Auth Pages ───────────────────────────────────────────────────── */
+    .auth-page {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 20px;
+    }
+
+    .auth-container {
+      width: 100%; max-width: 440px;
+    }
+
+    .auth-header {
+      text-align: center; margin-bottom: 40px;
+    }
+
+    .auth-header h1 {
+      font-family: 'Orbitron', monospace;
+      font-size: 2.5rem; font-weight: 900;
+      background: linear-gradient(135deg, var(--neon-green), var(--neon-blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    .auth-header p {
+      color: var(--text-secondary); font-size: 1rem;
+    }
+
+    .auth-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 32px;
+    }
+
+    .auth-card h2 {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.3rem; margin-bottom: 24px;
+      color: var(--neon-green);
+    }
+
+    .auth-toggle {
+      text-align: center; margin-top: 20px;
+      color: var(--text-secondary); font-size: 0.9rem;
+    }
+
+    .auth-toggle a {
+      color: var(--neon-blue); text-decoration: none; font-weight: 600;
+      cursor: pointer;
+    }
+    .auth-toggle a:hover { text-decoration: underline; }
+
+    .auth-error {
+      background: rgba(255,45,45,0.1);
+      border: 1px solid rgba(255,45,45,0.3);
+      color: #ff6b6b; padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem; margin-bottom: 16px;
+    }
+
+    .auth-success {
+      background: rgba(0,255,136,0.1);
+      border: 1px solid rgba(0,255,136,0.3);
+      color: var(--neon-green); padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem; margin-bottom: 16px;
+    }
+
+    /* ── Dashboard ────────────────────────────────────────────────────── */
+    .dashboard { padding: 40px 0; }
+
+    .dashboard-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 32px; flex-wrap: wrap; gap: 16px;
+    }
+
+    .dashboard-header h1 {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.8rem;
+    }
+
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px; margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 20px; text-align: center;
+    }
+
+    .stat-card .stat-value {
+      font-family: 'Orbitron', monospace;
+      font-size: 2rem; font-weight: 900;
+      background: linear-gradient(135deg, var(--neon-green), var(--neon-blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    .stat-card .stat-label {
+      font-size: 0.8rem; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-top: 4px;
+    }
+
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .project-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 24px;
+      transition: var(--transition);
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .project-card::before {
+      content: ''; position: absolute; top: 0; left: 0;
+      width: 100%; height: 3px;
+      background: linear-gradient(90deg, var(--neon-green), var(--neon-blue), var(--neon-purple));
+    }
+
+    .project-card:hover {
+      border-color: rgba(0,255,136,0.3);
+      transform: translateY(-4px);
+      box-shadow: var(--glow-green);
+    }
+
+    .project-card h3 {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.1rem; margin-bottom: 8px;
+    }
+
+    .project-card .project-desc {
+      color: var(--text-secondary); font-size: 0.85rem;
+      margin-bottom: 16px; line-height: 1.5;
+    }
+
+    .project-card .project-meta {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 8px;
+    }
+
+    .lang-badge {
+      padding: 4px 10px; border-radius: 20px;
+      font-size: 0.75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    .lang-html { background: rgba(255,100,50,0.15); color: #ff8c50; border: 1px solid rgba(255,100,50,0.3); }
+    .lang-css { background: rgba(0,150,255,0.15); color: #4da6ff; border: 1px solid rgba(0,150,255,0.3); }
+    .lang-javascript { background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid rgba(255,215,0,0.3); }
+    .lang-python { background: rgba(0,255,136,0.15); color: var(--neon-green); border: 1px solid rgba(0,255,136,0.3); }
+    .lang-sql { background: rgba(180,77,255,0.15); color: var(--neon-purple); border: 1px solid rgba(180,77,255,0.3); }
+
+    .hosted-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 20px;
+      background: rgba(0,255,136,0.1);
+      border: 1px solid rgba(0,255,136,0.3);
+      color: var(--neon-green);
+      font-size: 0.75rem; font-weight: 600;
+    }
+
+    .project-date {
+      font-size: 0.75rem; color: var(--text-dim);
+    }
+
+    .new-project-card {
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px;
+      border: 2px dashed var(--border-color);
+      background: transparent;
+      min-height: 180px; cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .new-project-card::before { display: none; }
+
+    .new-project-card:hover {
+      border-color: var(--neon-green);
+      background: rgba(0,255,136,0.03);
+    }
+
+    .new-project-card .plus-icon {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: rgba(0,255,136,0.1);
+      border: 2px solid rgba(0,255,136,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; color: var(--neon-green);
+    }
+
+    .new-project-card span {
+      color: var(--text-secondary); font-weight: 600;
+    }
+
+    /* ── Modal ────────────────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 32px; width: 100%; max-width: 500px;
+      box-shadow: 0 0 60px rgba(0,0,0,0.5);
+    }
+
+    .modal h2 {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.3rem; margin-bottom: 24px;
+      color: var(--neon-green);
+    }
+
+    .modal-actions {
+      display: flex; gap: 12px; justify-content: flex-end;
+      margin-top: 24px;
+    }
+
+    /* ── Editor Page ──────────────────────────────────────────────────── */
+    .editor-page {
+      height: 100vh; display: flex; flex-direction: column;
+    }
+
+    .editor-toolbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      flex-wrap: wrap;
+    }
+
+    .editor-toolbar .project-name {
+      font-family: 'Orbitron', monospace;
+      font-size: 1rem; font-weight: 700;
+      color: var(--neon-green);
+      flex-shrink: 0;
+    }
+
+    .editor-toolbar .separator {
+      width: 1px; height: 24px;
+      background: var(--border-color);
+    }
+
+    .toolbar-group {
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .toolbar-btn {
+      padding: 6px 12px; border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: transparent; color: var(--text-primary);
+      cursor: pointer; font-size: 0.8rem;
+      font-family: 'Inter', sans-serif;
+      transition: var(--transition);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+
+    .toolbar-btn:hover {
+      border-color: var(--neon-green);
+      color: var(--neon-green);
+      box-shadow: 0 0 10px rgba(0,255,136,0.2);
+    }
+
+    .toolbar-btn.active {
+      background: rgba(0,255,136,0.1);
+      border-color: var(--neon-green);
+      color: var(--neon-green);
+    }
+
+    .toolbar-select {
+      padding: 6px 30px 6px 12px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%2388a' viewBox='0 0 16 16'%3E%3Cpath d='M8 12L2 6h12z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+    }
+
+    .toolbar-select:focus {
+      outline: none;
+      border-color: var(--neon-green);
+    }
+
+    .editor-body {
+      flex: 1; display: flex; overflow: hidden;
+    }
+
+    .editor-panel {
+      flex: 1; display: flex; flex-direction: column;
+      min-width: 0;
+    }
+
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 16px;
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .panel-header .dot { 
+      display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; margin-right: 8px;
+    }
+    .dot-green { background: var(--neon-green); box-shadow: 0 0 6px var(--neon-green); }
+    .dot-blue { background: var(--neon-blue); box-shadow: 0 0 6px var(--neon-blue); }
+    .dot-orange { background: var(--neon-orange); box-shadow: 0 0 6px var(--neon-orange); }
+
+    #editor-container { flex: 1; overflow: hidden; }
+
+    .preview-panel {
+      flex: 1; display: flex; flex-direction: column;
+      border-left: 1px solid var(--border-color);
+      min-width: 0;
+    }
+
+    .preview-panel iframe {
+      flex: 1; width: 100%; border: none;
+      background: #fff;
+    }
+
+    .output-panel {
+      flex: 1; display: flex; flex-direction: column;
+      border-left: 1px solid var(--border-color);
+      min-width: 0;
+    }
+
+    .output-content {
+      flex: 1; padding: 16px; overflow: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem; line-height: 1.6;
+      background: var(--bg-primary);
+      white-space: pre-wrap;
+    }
+
+    .output-line { margin-bottom: 2px; }
+    .output-line.error { color: #ff6b6b; }
+    .output-line.success { color: var(--neon-green); }
+    .output-line.info { color: var(--neon-blue); }
+
+    .resize-handle {
+      width: 4px; cursor: col-resize;
+      background: var(--border-color);
+      transition: background 0.2s;
+    }
+    .resize-handle:hover { background: var(--neon-green); }
+
+    /* ── Save Status ─────────────────────────────────────────────────── */
+    .save-status {
+      font-size: 0.75rem; color: var(--text-dim);
+      display: flex; align-items: center; gap: 4px;
+    }
+
+    .save-status.saving { color: var(--neon-orange); }
+    .save-status.saved { color: var(--neon-green); }
+
+    /* ── Settings Panel ──────────────────────────────────────────────── */
+    .settings-page { padding: 40px 0; }
+
+    .settings-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 24px; margin-bottom: 24px;
+    }
+
+    .settings-section h2 {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.1rem; margin-bottom: 16px;
+      color: var(--neon-blue);
+    }
+
+    .github-connected {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px;
+      background: rgba(0,255,136,0.05);
+      border: 1px solid rgba(0,255,136,0.2);
+      border-radius: var(--radius-sm);
+    }
+
+    .github-connected .gh-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: #333; display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+    }
+
+    /* ── Toast Notifications ──────────────────────────────────────────── */
+    .toast-container {
+      position: fixed; bottom: 24px; right: 24px;
+      z-index: 10000; display: flex;
+      flex-direction: column; gap: 8px;
+    }
+
+    .toast {
+      padding: 12px 20px; border-radius: var(--radius-sm);
+      font-size: 0.85rem; font-weight: 500;
+      animation: slideInRight 0.3s ease;
+      max-width: 400px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .toast-success {
+      background: rgba(0,255,136,0.15);
+      border: 1px solid rgba(0,255,136,0.3);
+      color: var(--neon-green);
+    }
+
+    .toast-error {
+      background: rgba(255,45,45,0.15);
+      border: 1px solid rgba(255,45,45,0.3);
+      color: #ff6b6b;
+    }
+
+    .toast-info {
+      background: rgba(0,212,255,0.15);
+      border: 1px solid rgba(0,212,255,0.3);
+      color: var(--neon-blue);
+    }
+
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* ── Loading Spinner ─────────────────────────────────────────────── */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--border-color);
+      border-top-color: var(--neon-green);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Empty State ─────────────────────────────────────────────────── */
+    .empty-state {
+      text-align: center; padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+
+    .empty-state .empty-icon {
+      font-size: 4rem; margin-bottom: 16px; opacity: 0.5;
+    }
+
+    .empty-state h3 {
+      font-family: 'Orbitron', monospace;
+      margin-bottom: 8px; color: var(--text-primary);
+    }
+
+    /* ── Responsive ───────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .editor-body { flex-direction: column; }
+      .preview-panel, .output-panel { border-left: none; border-top: 1px solid var(--border-color); }
+      .resize-handle { display: none; }
+      .dashboard-header { flex-direction: column; align-items: flex-start; }
+      .projects-grid { grid-template-columns: 1fr; }
+      .stats-bar { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ── Keyboard Shortcut Hints ─────────────────────────────────────── */
+    .kbd {
+      padding: 2px 6px; border-radius: 4px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem; color: var(--text-dim);
+    }
+
+    .toolbar-right {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-orbs"></div>
+
+<!-- ═══════════════════════ AUTH PAGE ═══════════════════════ -->
+<div id="page-auth" class="auth-page">
+  <div class="auth-container">
+    <div class="auth-header">
+      <h1>NEONCODE</h1>
+      <p>⚡ Futuristic Code Editor</p>
+    </div>
+
+    <!-- Login Form -->
+    <div id="login-form" class="auth-card">
+      <h2>⟩ Sign In</h2>
+      <div id="login-error" class="auth-error hidden"></div>
+      <div class="form-group">
+        <label class="form-label">Username or Email</label>
+        <input type="text" id="login-username" class="form-input" placeholder="neo@matrix.io" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" id="login-password" class="form-input" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary btn-lg" style="width:100%" onclick="doLogin()">
+        ⚡ Enter the Grid
+      </button>
+      <div class="auth-toggle">
+        New to NeonCode? <a onclick="showRegister()">Create Account</a>
+      </div>
+    </div>
+
+    <!-- Register Form -->
+    <div id="register-form" class="auth-card hidden">
+      <h2>⟩ Create Account</h2>
+      <div id="register-error" class="auth-error hidden"></div>
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" id="reg-username" class="form-input" placeholder="cyberdev" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input type="email" id="reg-email" class="form-input" placeholder="you@neoncode.dev" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password (min 6 chars)</label>
+        <input type="password" id="reg-password" class="form-input" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <button class="btn btn-primary btn-lg" style="width:100%" onclick="doRegister()">
+        🚀 Join the Grid
+      </button>
+      <div class="auth-toggle">
+        Already have an account? <a onclick="showLogin()">Sign In</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ MAIN APP ═══════════════════════ -->
+<div id="page-app" class="hidden">
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a class="logo" onclick="showDashboard()">NEON<span>CODE</span> ⚡</a>
+      <div class="nav-actions">
+        <button class="btn btn-secondary btn-sm" onclick="showDashboard()">📁 Projects</button>
+        <button class="btn btn-secondary btn-sm" onclick="showSettings()">⚙️ Settings</button>
+        <div class="nav-user">
+          <div class="avatar" id="nav-avatar">N</div>
+          <span id="nav-username">neo</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="doLogout()">↩ Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Dashboard -->
+  <div id="view-dashboard" class="dashboard container">
+    <div class="dashboard-header">
+      <h1>⟩ Your Projects</h1>
+      <button class="btn btn-primary" onclick="showNewProjectModal()">
+        + New Project
+      </button>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-projects">0</div>
+        <div class="stat-label">Projects</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-hosted">0</div>
+        <div class="stat-label">Hosted on GitHub</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-languages">0</div>
+        <div class="stat-label">Languages Used</div>
+      </div>
+    </div>
+
+    <div class="projects-grid" id="projects-grid">
+      <!-- Projects rendered here -->
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="view-settings" class="settings-page container hidden">
+    <h1 style="font-family:'Orbitron',monospace; margin-bottom:24px;">⟩ Settings</h1>
+
+    <div class="settings-section">
+      <h2>👤 Account</h2>
+      <p style="color:var(--text-secondary); margin-bottom:8px;">
+        Username: <strong id="settings-username" style="color:var(--neon-green)"></strong>
+      </p>
+      <p style="color:var(--text-secondary);">
+        Email: <strong id="settings-email" style="color:var(--neon-blue)"></strong>
+      </p>
+    </div>
+
+    <div class="settings-section">
+      <h2>🐙 GitHub Integration</h2>
+      <p style="color:var(--text-secondary); margin-bottom:16px;">
+        Connect your GitHub account to push projects and host them via GitHub Pages.
+      </p>
+
+      <div id="github-not-connected">
+        <div class="form-group">
+          <label class="form-label">GitHub Personal Access Token</label>
+          <input type="password" id="github-token-input" class="form-input"
+                 placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+          <p style="font-size:0.75rem; color:var(--text-dim); margin-top:6px;">
+            Generate a token at github.com/settings/tokens with "repo" scope.
+          </p>
+        </div>
+        <button class="btn btn-github" onclick="connectGitHub()">
+          🐙 Connect GitHub
+        </button>
+      </div>
+
+      <div id="github-connected" class="github-connected hidden">
+        <div class="gh-avatar">🐙</div>
+        <div style="flex:1">
+          <div style="font-weight:600;" id="gh-connected-user">Connected</div>
+          <div style="font-size:0.8rem; color:var(--text-secondary);">GitHub account linked</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="disconnectGitHub()">Disconnect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Editor -->
+  <div id="view-editor" class="editor-page hidden">
+    <div class="editor-toolbar">
+      <span class="project-name" id="editor-project-name">Untitled</span>
+      <div class="separator"></div>
+
+      <div class="toolbar-group">
+        <select class="toolbar-select" id="language-select" onchange="changeLanguage(this.value)">
+          <option value="html">HTML</option>
+          <option value="css">CSS</option>
+          <option value="javascript">JavaScript</option>
+          <option value="python">Python</option>
+          <option value="sql">SQL</option>
+        </select>
+      </div>
+
+      <div class="toolbar-group">
+        <button class="toolbar-btn" onclick="runCode()" title="Run code">▶ Run</button>
+        <button class="toolbar-btn" onclick="saveProject()" title="Ctrl+S">💾 Save</button>
+        <button class="toolbar-btn" onclick="formatCode()" title="Format">✨ Format</button>
+      </div>
+
+      <div class="toolbar-right">
+        <span class="save-status" id="save-status">Ready</span>
+        <div class="separator"></div>
+        <button class="toolbar-btn" onclick="pushToGitHub()" title="Push to GitHub">
+          🐙 Push to GitHub
+        </button>
+        <button class="toolbar-btn" onclick="showDashboard()">← Back</button>
+      </div>
+    </div>
+
+    <div class="editor-body">
+      <div class="editor-panel">
+        <div class="panel-header">
+          <span><span class="dot dot-green"></span>EDITOR</span>
+          <span id="cursor-pos">Ln 1, Col 1</span>
+        </div>
+        <div id="editor-container"></div>
+      </div>
+
+      <div class="resize-handle" id="resize-handle"></div>
+
+      <div id="preview-panel" class="preview-panel">
+        <div class="panel-header">
+          <span><span class="dot dot-blue"></span>PREVIEW</span>
+          <button class="toolbar-btn btn-sm" onclick="refreshPreview()">↻ Refresh</button>
+        </div>
+        <iframe id="preview-iframe" sandbox="allow-scripts allow-modals"></iframe>
+      </div>
+
+      <div id="output-panel" class="output-panel hidden">
+        <div class="panel-header">
+          <span><span class="dot dot-orange"></span>OUTPUT</span>
+          <button class="toolbar-btn btn-sm" onclick="clearOutput()">Clear</button>
+        </div>
+        <div class="output-content" id="output-content">
+          <span style="color:var(--text-dim)">// Run your code to see output here...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ NEW PROJECT MODAL ═══════════════════════ -->
+<div id="modal-new-project" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>+ New Project</h2>
+    <div class="form-group">
+      <label class="form-label">Project Name</label>
+      <input type="text" id="new-project-name" class="form-input" placeholder="my-awesome-project">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description (optional)</label>
+      <input type="text" id="new-project-desc" class="form-input" placeholder="A brief description...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Primary Language</label>
+      <select id="new-project-lang" class="form-input">
+        <option value="html">HTML</option>
+        <option value="css">CSS</option>
+        <option value="javascript">JavaScript</option>
+        <option value="python">Python</option>
+        <option value="sql">SQL</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="hideModal('modal-new-project')">Cancel</button>
+      <button class="btn btn-primary" onclick="createProject()">⚡ Create Project</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ TOAST CONTAINER ═══════════════════════ -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ═══════════════════════ MONACO LOADER ═══════════════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════
+let currentUser = null;
+let currentProject = null;
+let projects = [];
+let editor = null;
+let editorReady = false;
+let autoSaveTimer = null;
+
+// ══════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await api('/api/me');
+    if (res.user) {
+      currentUser = res.user;
+      enterApp();
+    }
+  } catch {
+    // Not logged in
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 's') {
+      e.preventDefault();
+      if (currentProject) saveProject();
+    }
+    if (e.ctrlKey && e.key === 'Enter') {
+      e.preventDefault();
+      if (currentProject) runCode();
+    }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════
+// API HELPER
+// ══════════════════════════════════════════════════════════════════
+async function api(url, options = {}) {
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════════
+function toast(message, type = 'success') {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = message;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3000);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════════════
+function showLogin() {
+  document.getElementById('login-form').classList.remove('hidden');
+  document.getElementById('register-form').classList.add('hidden');
+}
+
+function showRegister() {
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('register-form').classList.remove('hidden');
+}
+
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.classList.add('hidden');
+
+  if (!username || !password) {
+    errEl.textContent = 'Please fill in all fields';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const data = await api('/api/login', { method: 'POST', body: { username, password } });
+    currentUser = data.user;
+    enterApp();
+    toast('Welcome back, ' + data.user.username + '!');
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function doRegister() {
+  const username = document.getElementById('reg-username').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const errEl = document.getElementById('register-error');
+  errEl.classList.add('hidden');
+
+  if (!username || !email || !password) {
+    errEl.textContent = 'Please fill in all fields';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const data = await api('/api/register', { method: 'POST', body: { username, email, password } });
+    currentUser = data.user;
+    enterApp();
+    toast('Account created! Welcome to NeonCode!', 'success');
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function doLogout() {
+  await api('/api/logout', { method: 'POST' });
+  currentUser = null;
+  currentProject = null;
+  document.getElementById('page-auth').classList.remove('hidden');
+  document.getElementById('page-app').classList.add('hidden');
+  toast('Logged out', 'info');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ENTER APP
+// ══════════════════════════════════════════════════════════════════
+function enterApp() {
+  document.getElementById('page-auth').classList.add('hidden');
+  document.getElementById('page-app').classList.remove('hidden');
+  document.getElementById('nav-username').textContent = currentUser.username;
+  document.getElementById('nav-avatar').textContent = currentUser.username[0].toUpperCase();
+  showDashboard();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// VIEWS
+// ══════════════════════════════════════════════════════════════════
+function hideAllViews() {
+  document.getElementById('view-dashboard').classList.add('hidden');
+  document.getElementById('view-settings').classList.add('hidden');
+  document.getElementById('view-editor').classList.add('hidden');
+  document.querySelector('.navbar').classList.remove('hidden');
+}
+
+async function showDashboard() {
+  hideAllViews();
+  document.getElementById('view-dashboard').classList.remove('hidden');
+  currentProject = null;
+  await loadProjects();
+}
+
+function showSettings() {
+  hideAllViews();
+  document.getElementById('view-settings').classList.remove('hidden');
+  document.getElementById('settings-username').textContent = currentUser.username;
+  document.getElementById('settings-email').textContent = currentUser.email;
+
+  if (currentUser.github_username) {
+    document.getElementById('github-not-connected').classList.add('hidden');
+    document.getElementById('github-connected').classList.remove('hidden');
+    document.getElementById('gh-connected-user').textContent = '@' + currentUser.github_username;
+  } else {
+    document.getElementById('github-not-connected').classList.remove('hidden');
+    document.getElementById('github-connected').classList.add('hidden');
+  }
+}
+
+async function showEditor(projectId) {
+  hideAllViews();
+  document.getElementById('view-editor').classList.remove('hidden');
+  document.querySelector('.navbar').classList.add('hidden');
+
+  try {
+    const data = await api(`/api/projects/${projectId}`);
+    currentProject = data.project;
+    document.getElementById('editor-project-name').textContent = currentProject.name;
+    document.getElementById('language-select').value = currentProject.language;
+
+    updatePanelVisibility(currentProject.language);
+
+    if (!editorReady) {
+      await initMonaco();
+    }
+
+    setEditorLanguage(currentProject.language);
+    editor.setValue(currentProject.code || '');
+
+    if (['html', 'css', 'javascript'].includes(currentProject.language)) {
+      setTimeout(refreshPreview, 300);
+    }
+  } catch (err) {
+    toast('Failed to load project: ' + err.message, 'error');
+    showDashboard();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PROJECTS
+// ══════════════════════════════════════════════════════════════════
+async function loadProjects() {
+  try {
+    const data = await api('/api/projects');
+    projects = data.projects;
+    renderProjects();
+  } catch (err) {
+    toast('Failed to load projects: ' + err.message, 'error');
+  }
+}
+
+function renderProjects() {
+  const grid = document.getElementById('projects-grid');
+  const hosted = projects.filter(p => p.is_hosted).length;
+  const langs = new Set(projects.map(p => p.language)).size;
+
+  document.getElementById('stat-projects').textContent = projects.length;
+  document.getElementById('stat-hosted').textContent = hosted;
+  document.getElementById('stat-languages').textContent = langs;
+
+  grid.innerHTML = `
+    <div class="project-card new-project-card" onclick="showNewProjectModal()">
+      <div class="plus-icon">+</div>
+      <span>New Project</span>
+    </div>
+    ${projects.map(p => `
+      <div class="project-card" onclick="showEditor(${p.id})">
+        <h3>${escHtml(p.name)}</h3>
+        <p class="project-desc">${escHtml(p.description) || 'No description'}</p>
+        <div class="project-meta">
+          <span class="lang-badge lang-${p.language}">${p.language}</span>
+          ${p.is_hosted ? '<span class="hosted-badge">🌐 Hosted</span>' : ''}
+          <span class="project-date">${formatDate(p.updated_at)}</span>
+        </div>
+        <div style="margin-top:12px; display:flex; gap:8px;">
+          ${p.github_url ? `<a href="${escHtml(p.github_url)}" target="_blank" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">🐙 Repo</a>` : ''}
+          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteProject(${p.id}, '${escHtml(p.name)}')">🗑</button>
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function showNewProjectModal() {
+  document.getElementById('new-project-name').value = '';
+  document.getElementById('new-project-desc').value = '';
+  document.getElementById('new-project-lang').value = 'html';
+  document.getElementById('modal-new-project').classList.remove('hidden');
+}
+
+function hideModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+async function createProject() {
+  const name = document.getElementById('new-project-name').value.trim();
+  const description = document.getElementById('new-project-desc').value.trim();
+  const language = document.getElementById('new-project-lang').value;
+
+  if (!name) { toast('Project name is required', 'error'); return; }
+
+  try {
+    const data = await api('/api/projects', {
+      method: 'POST',
+      body: { name, description, language }
+    });
+    hideModal('modal-new-project');
+    toast('Project created!', 'success');
+    showEditor(data.project.id);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteProject(id, name) {
+  if (!confirm(`Delete project "${name}"? This cannot be undone.`)) return;
+  try {
+    await api(`/api/projects/${id}`, { method: 'DELETE' });
+    toast('Project deleted', 'info');
+    loadProjects();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MONACO EDITOR
+// ══════════════════════════════════════════════════════════════════
+function initMonaco() {
+  return new Promise((resolve) => {
+    require.config({
+      paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }
+    });
+
+    require(['vs/editor/editor.main'], function () {
+      // Define custom futuristic theme
+      monaco.editor.defineTheme('neoncode', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [
+          { token: 'comment', foreground: '555577', fontStyle: 'italic' },
+          { token: 'keyword', foreground: 'b44dff', fontStyle: 'bold' },
+          { token: 'string', foreground: '00ff88' },
+          { token: 'number', foreground: 'ff8c00' },
+          { token: 'tag', foreground: '00d4ff' },
+          { token: 'attribute.name', foreground: 'ffd700' },
+          { token: 'attribute.value', foreground: '00ff88' },
+          { token: 'delimiter', foreground: '8888aa' },
+          { token: 'type', foreground: '00d4ff' },
+          { token: 'variable', foreground: 'e8e8ff' },
+          { token: 'function', foreground: 'ffd700' },
+          { token: 'operator', foreground: 'ff2d95' },
+        ],
+        colors: {
+          'editor.background': '#0a0a1a',
+          'editor.foreground': '#e8e8ff',
+          'editor.lineHighlightBackground': '#10102a',
+          'editor.selectionBackground': '#1a1a4a',
+          'editor.inactiveSelectionBackground': '#15153a',
+          'editorCursor.foreground': '#00ff88',
+          'editorLineNumber.foreground': '#333355',
+          'editorLineNumber.activeForeground': '#00ff88',
+          'editor.selectionHighlightBackground': '#1a1a3a',
+          'editorIndentGuide.background': '#1a1a3a',
+          'editorIndentGuide.activeBackground': '#2a2a4a',
+          'editorWidget.background': '#0d0d25',
+          'editorWidget.border': '#1a1a3a',
+          'editorSuggestWidget.background': '#0d0d25',
+          'editorSuggestWidget.border': '#1a1a3a',
+          'editorSuggestWidget.selectedBackground': '#1a1a4a',
+          'minimap.background': '#050510',
+        }
+      });
+
+      editor = monaco.editor.create(document.getElementById('editor-container'), {
+        value: '',
+        language: 'html',
+        theme: 'neoncode',
+        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+        fontSize: 14,
+        fontLigatures: true,
+        lineHeight: 22,
+        minimap: { enabled: true, maxColumn: 80 },
+        smoothScrolling: true,
+        cursorBlinking: 'phase',
+        cursorSmoothCaretAnimation: 'on',
+        renderWhitespace: 'selection',
+        bracketPairColorization: { enabled: true },
+        guides: { bracketPairs: true, indentation: true },
+        padding: { top: 16 },
+        scrollBeyondLastLine: false,
+        automaticLayout: true,
+        wordWrap: 'on',
+        suggest: { showKeywords: true, showSnippets: true },
+        tabSize: 2,
+      });
+
+      // Cursor position tracking
+      editor.onDidChangeCursorPosition((e) => {
+        document.getElementById('cursor-pos').textContent =
+          `Ln ${e.position.lineNumber}, Col ${e.position.column}`;
+      });
+
+      // Auto-save on content change
+      editor.onDidChangeModelContent(() => {
+        clearTimeout(autoSaveTimer);
+        document.getElementById('save-status').textContent = '● Modified';
+        document.getElementById('save-status').className = 'save-status saving';
+
+        autoSaveTimer = setTimeout(() => {
+          if (currentProject) saveProject(true);
+        }, 2000);
+
+        // Live preview for web languages
+        if (currentProject && ['html', 'css', 'javascript'].includes(currentProject.language)) {
+          clearTimeout(window._previewTimer);
+          window._previewTimer = setTimeout(refreshPreview, 500);
+        }
+      });
+
+      // Ctrl+S handler
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => saveProject());
+
+      editorReady = true;
+      resolve();
+    });
+  });
+}
+
+function setEditorLanguage(lang) {
+  if (!editor) return;
+  const monacoLang = { html: 'html', css: 'css', javascript: 'javascript', python: 'python', sql: 'sql' };
+  monaco.editor.setModelLanguage(editor.getModel(), monacoLang[lang] || 'plaintext');
+}
+
+function changeLanguage(lang) {
+  if (!currentProject) return;
+  currentProject.language = lang;
+  setEditorLanguage(lang);
+  updatePanelVisibility(lang);
+}
+
+function updatePanelVisibility(lang) {
+  const previewPanel = document.getElementById('preview-panel');
+  const outputPanel = document.getElementById('output-panel');
+
+  if (['html', 'css', 'javascript'].includes(lang)) {
+    previewPanel.classList.remove('hidden');
+    outputPanel.classList.add('hidden');
+  } else {
+    previewPanel.classList.add('hidden');
+    outputPanel.classList.remove('hidden');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SAVE PROJECT
+// ══════════════════════════════════════════════════════════════════
+async function saveProject(silent = false) {
+  if (!currentProject || !editor) return;
+
+  const statusEl = document.getElementById('save-status');
+  statusEl.textContent = '⟳ Saving...';
+  statusEl.className = 'save-status saving';
+
+  try {
+    const code = editor.getValue();
+    await api(`/api/projects/${currentProject.id}`, {
+      method: 'PUT',
+      body: {
+        name: currentProject.name,
+        description: currentProject.description,
+        language: currentProject.language,
+        code
+      }
+    });
+
+    currentProject.code = code;
+    statusEl.textContent = '✓ Saved';
+    statusEl.className = 'save-status saved';
+
+    if (!silent) toast('Project saved!', 'success');
+  } catch (err) {
+    statusEl.textContent = '✗ Save failed';
+    statusEl.className = 'save-status';
+    if (!silent) toast('Save failed: ' + err.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// RUN CODE
+// ══════════════════════════════════════════════════════════════════
+function runCode() {
+  if (!editor || !currentProject) return;
+  const code = editor.getValue();
+  const lang = currentProject.language;
+
+  if (['html', 'css', 'javascript'].includes(lang)) {
+    refreshPreview();
+  } else if (lang === 'python') {
+    runPythonSimulated(code);
+  } else if (lang === 'sql') {
+    runSqlSimulated(code);
+  }
+}
+
+function refreshPreview() {
+  if (!editor) return;
+  const code = editor.getValue();
+  const lang = currentProject?.language;
+  const iframe = document.getElementById('preview-iframe');
+
+  let htmlContent = '';
+  if (lang === 'html') {
+    htmlContent = code;
+  } else if (lang === 'css') {
+    htmlContent = `<!DOCTYPE html><html><head><style>${code}</style></head><body>
+      <h1>CSS Preview</h1>
+      <p>Your styles are applied to this page.</p>
+      <div class="container"><div class="glow">Glowing Text</div></div>
+      <button>Button</button> <a href="#">Link</a>
+      <ul><li>Item 1</li><li>Item 2</li><li>Item 3</li></ul>
+    </body></html>`;
+  } else if (lang === 'javascript') {
+    htmlContent = `<!DOCTYPE html><html><head>
+      <style>body{background:#0a0a1a;color:#00ff88;font-family:'Courier New',monospace;padding:20px;}
+      .log{margin:2px 0;padding:4px 8px;border-left:2px solid #1a1a3a;}
+      .error{color:#ff6b6b;border-left-color:#ff6b6b;}
+      h3{color:#00d4ff;}</style></head><body>
+      <h3>⚡ Console Output</h3><div id="output"></div>
+      <script>
+        const _out = document.getElementById('output');
+        const _origLog = console.log;
+        console.log = (...args) => {
+          const div = document.createElement('div');
+          div.className = 'log';
+          div.textContent = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+          _out.appendChild(div);
+          _origLog(...args);
+        };
+        console.error = (...args) => {
+          const div = document.createElement('div');
+          div.className = 'log error';
+          div.textContent = '❌ ' + args.join(' ');
+          _out.appendChild(div);
+        };
+        try { ${code} } catch(e) { console.error(e.message); }
+      <\/script></body></html>`;
+  }
+
+  iframe.srcdoc = htmlContent;
+}
+
+function runPythonSimulated(code) {
+  const output = document.getElementById('output-content');
+  output.innerHTML = '';
+
+  addOutput('⚡ NeonCode Python Interpreter (simulated)', 'info');
+  addOutput('────────────────────────────────────', 'info');
+
+  // Simple Python interpreter simulation
+  const lines = code.split('\n');
+  const variables = {};
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    // Handle print statements
+    const printMatch = trimmed.match(/^print\s*\((.*)\)\s*$/);
+    if (printMatch) {
+      let val = printMatch[1].trim();
+      // Handle f-strings
+      val = val.replace(/f["'](.+?)["']/g, (_, content) => {
+        return content.replace(/\{(.+?)\}/g, (__, expr) => {
+          return variables[expr.trim()] || expr;
+        });
+      });
+      // Handle regular strings
+      val = val.replace(/^["'](.*)["']$/, '$1');
+      // Handle variables
+      if (variables[val] !== undefined) val = variables[val];
+      addOutput(String(val), 'success');
+      continue;
+    }
+
+    // Handle variable assignments
+    const assignMatch = trimmed.match(/^(\w+)\s*=\s*(.+)$/);
+    if (assignMatch) {
+      let val = assignMatch[2].trim();
+      val = val.replace(/^["'](.*)["']$/, '$1');
+      if (!isNaN(val)) val = Number(val);
+      variables[assignMatch[1]] = val;
+      continue;
+    }
+
+    // Handle def
+    if (trimmed.startsWith('def ')) {
+      addOutput(`[function defined: ${trimmed.match(/def\s+(\w+)/)?.[1] || '?'}]`, 'info');
+      continue;
+    }
+  }
+
+  addOutput('────────────────────────────────────', 'info');
+  addOutput('✓ Execution complete', 'info');
+}
+
+function runSqlSimulated(code) {
+  const output = document.getElementById('output-content');
+  output.innerHTML = '';
+
+  addOutput('⚡ NeonCode SQL Console', 'info');
+  addOutput('────────────────────────────────────', 'info');
+
+  const statements = code.split(';').filter(s => s.trim());
+  for (const stmt of statements) {
+    const trimmed = stmt.trim();
+    if (!trimmed || trimmed.startsWith('--')) continue;
+
+    if (/^CREATE/i.test(trimmed)) {
+      addOutput('✓ Table created successfully', 'success');
+    } else if (/^INSERT/i.test(trimmed)) {
+      addOutput('✓ 1 row inserted', 'success');
+    } else if (/^SELECT/i.test(trimmed)) {
+      addOutput('┌─ Query Results ─────────────────┐', 'info');
+      addOutput('│ (simulated output)              │', '');
+      addOutput('│ Results would appear here       │', '');
+      addOutput('└─────────────────────────────────┘', 'info');
+    } else if (/^UPDATE/i.test(trimmed)) {
+      addOutput('✓ Rows updated', 'success');
+    } else if (/^DELETE/i.test(trimmed)) {
+      addOutput('✓ Rows deleted', 'success');
+    } else if (/^DROP/i.test(trimmed)) {
+      addOutput('✓ Table dropped', 'success');
+    } else {
+      addOutput('⟩ ' + trimmed.substring(0, 60) + '...', '');
+    }
+  }
+
+  addOutput('────────────────────────────────────', 'info');
+  addOutput('✓ Execution complete', 'info');
+}
+
+function addOutput(text, type = '') {
+  const output = document.getElementById('output-content');
+  const line = document.createElement('div');
+  line.className = 'output-line' + (type ? ' ' + type : '');
+  line.textContent = text;
+  output.appendChild(line);
+  output.scrollTop = output.scrollHeight;
+}
+
+function clearOutput() {
+  document.getElementById('output-content').innerHTML =
+    '<span style="color:var(--text-dim)">// Run your code to see output here...</span>';
+}
+
+function formatCode() {
+  if (!editor) return;
+  editor.getAction('editor.action.formatDocument')?.run();
+  toast('Code formatted', 'info');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GITHUB INTEGRATION
+// ══════════════════════════════════════════════════════════════════
+async function connectGitHub() {
+  const token = document.getElementById('github-token-input').value.trim();
+  if (!token) { toast('Please enter a GitHub token', 'error'); return; }
+
+  try {
+    const data = await api('/api/github/connect', {
+      method: 'POST',
+      body: { token }
+    });
+    currentUser.github_username = data.github_username;
+    currentUser.has_github_token = true;
+    toast(`Connected as @${data.github_username}!`, 'success');
+    showSettings();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function disconnectGitHub() {
+  if (!confirm('Disconnect your GitHub account?')) return;
+  try {
+    await api('/api/github/disconnect', { method: 'POST' });
+    currentUser.github_username = null;
+    currentUser.has_github_token = false;
+    toast('GitHub disconnected', 'info');
+    showSettings();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function pushToGitHub() {
+  if (!currentProject) return;
+
+  if (!currentUser.has_github_token && !currentUser.github_username) {
+    toast('Connect your GitHub account in Settings first', 'error');
+    return;
+  }
+
+  // Save first
+  await saveProject(true);
+
+  toast('Pushing to GitHub...', 'info');
+
+  try {
+    const data = await api(`/api/projects/${currentProject.id}/push-github`, {
+      method: 'POST'
+    });
+
+    currentProject.github_repo = data.repo_name;
+    currentProject.github_url = data.repo_url;
+    currentProject.is_hosted = 1;
+
+    toast('Pushed to GitHub! 🎉', 'success');
+
+    // Show links
+    setTimeout(() => {
+      toast(`Repo: ${data.repo_url}`, 'info');
+      if (data.pages_url) {
+        toast(`Pages: ${data.pages_url}`, 'info');
+      }
+    }, 500);
+  } catch (err) {
+    toast('GitHub push failed: ' + err.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// RESIZE HANDLE
+// ══════════════════════════════════════════════════════════════════
+(() => {
+  const handle = document.getElementById('resize-handle');
+  let isResizing = false;
+
+  handle.addEventListener('mousedown', (e) => {
+    isResizing = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+    const editorBody = document.querySelector('.editor-body');
+    const editorPanel = document.querySelector('.editor-panel');
+    const rect = editorBody.getBoundingClientRect();
+    const pct = ((e.clientX - rect.left) / rect.width) * 100;
+    editorPanel.style.flex = 'none';
+    editorPanel.style.width = Math.max(20, Math.min(80, pct)) + '%';
+  });
+
+  document.addEventListener('mouseup', () => {
+    isResizing = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════════
+function escHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'Z');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Enter key support on auth forms
+document.getElementById('login-password').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('reg-password').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doRegister();
+});
+
+// Close modal on overlay click
+document.getElementById('modal-new-project').addEventListener('click', function(e) {
+  if (e.target === this) hideModal('modal-new-project');
+});
+</script>
+
+</body>
+</html>
