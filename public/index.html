@@ -949,6 +949,14 @@
       <div class="auth-toggle">
         New to CODE_LAB? <a onclick="showRegister()">Create Account</a>
       </div>
+      <div style="text-align:center; margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color);">
+        <button class="btn btn-secondary" style="width:100%" onclick="doGuestLogin()">
+          👤 Continue as Guest
+        </button>
+        <p style="font-size:0.75rem; color:var(--text-dim); margin-top:8px;">
+          No signup needed — try CODE_LAB instantly
+        </p>
+      </div>
     </div>
 
     <!-- Register Form -->
@@ -1354,6 +1362,17 @@ async function doLogout() {
   document.getElementById('page-auth').classList.remove('hidden');
   document.getElementById('page-app').classList.add('hidden');
   toast('Logged out', 'info');
+}
+
+async function doGuestLogin() {
+  try {
+    const data = await api('/api/guest', { method: 'POST' });
+    currentUser = data.user;
+    enterApp();
+    toast('Welcome, guest! Create projects and explore CODE_LAB.', 'info');
+  } catch (err) {
+    toast('Guest login failed: ' + err.message, 'error');
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════

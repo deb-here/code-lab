@@ -170,7 +170,7 @@ app.post('/api/register', (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+    const userCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE email NOT LIKE '%@guest.codelab'").get().count;
     if (userCount >= MAX_USERS) {
       return res.status(403).json({ error: `Maximum ${MAX_USERS} users reached. Registration closed.` });
     }
@@ -221,6 +221,27 @@ app.post('/api/login', (req, res) => {
 app.post('/api/logout', (req, res) => {
   req.session.destroy();
   res.json({ success: true });
+});
+
+app.post('/api/guest', (req, res) => {
+  try {
+    const guestId = crypto.randomBytes(4).toString('hex');
+    const username = `guest_${guestId}`;
+    const email = `${username}@guest.codelab`;
+    const password = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10);
+
+    // Guests don't count toward the 10-user limit
+    const result = db.prepare('INSERT INTO users (username, email, password) VALUES (?, ?, ?)').run(username, email, password);
+
+    req.session.userId = result.lastInsertRowid;
+    req.session.username = username;
+    req.session.isGuest = true;
+
+    res.json({ success: true, user: { id: result.lastInsertRowid, username, email } });
+  } catch (err) {
+    console.error('Guest login error:', err);
+    res.status(500).json({ error: 'Failed to create guest session' });
+  }
 });
 
 app.get('/api/me', requireAuth, (req, res) => {
