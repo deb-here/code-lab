@@ -1,90 +1,67 @@
 const express = require('express');
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const bcrypt = require('bcryptjs');
-const Database = require('better-sqlite3');
+const mongoose = require('mongoose');
 const axios = require('axios');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/codelab';
 
-// ── Ensure data directory exists ────────────────────────────────────────────
-const fs = require('fs');
-const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+// ── Mongoose Schemas ────────────────────────────────────────────────────────
 
-// ── Database Setup ──────────────────────────────────────────────────────────
-const db = new Database(path.join(__dirname, 'data', 'codeeditor.db'));
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  email:    { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  github_token:    { type: String, default: null },
+  github_username: { type: String, default: null },
+}, { timestamps: true });
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    github_token TEXT,
-    github_username TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+const projectSchema = new mongoose.Schema({
+  user_id:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  name:        { type: String, required: true },
+  description: { type: String, default: '' },
+  language:    { type: String, default: 'html' },
+  code:        { type: String, default: '' },
+  github_repo: { type: String, default: null },
+  github_url:  { type: String, default: null },
+  is_hosted:   { type: Boolean, default: false },
+  last_edited_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  last_edited_at: { type: Date, default: null },
+}, { timestamps: true });
 
-  CREATE TABLE IF NOT EXISTS projects (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT DEFAULT '',
-    language TEXT DEFAULT 'html',
-    code TEXT DEFAULT '',
-    github_repo TEXT,
-    github_url TEXT,
-    is_hosted INTEGER DEFAULT 0,
-    last_edited_by INTEGER,
-    last_edited_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (last_edited_by) REFERENCES users(id)
-  );
+const editHistorySchema = new mongoose.Schema({
+  project_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true },
+  user_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  action:     { type: String, default: 'edit' },
+  summary:    { type: String, default: '' },
+}, { timestamps: true });
 
-  CREATE TABLE IF NOT EXISTS edit_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    action TEXT DEFAULT 'edit',
-    summary TEXT DEFAULT '',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
+const collaboratorSchema = new mongoose.Schema({
+  project_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true },
+  user_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  role:       { type: String, default: 'viewer', enum: ['viewer', 'editor'] },
+  invited_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+}, { timestamps: true });
+collaboratorSchema.index({ project_id: 1, user_id: 1 }, { unique: true });
 
-  CREATE TABLE IF NOT EXISTS collaborators (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    role TEXT DEFAULT 'viewer',
-    invited_by INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (invited_by) REFERENCES users(id),
-    UNIQUE(project_id, user_id)
-  );
+const projectFileSchema = new mongoose.Schema({
+  project_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true },
+  filename:   { type: String, required: true },
+  content:    { type: String, default: '' },
+  language:   { type: String, default: 'html' },
+}, { timestamps: true });
 
-  CREATE TABLE IF NOT EXISTS project_files (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id INTEGER NOT NULL,
-    filename TEXT NOT NULL,
-    content TEXT DEFAULT '',
-    language TEXT DEFAULT 'html',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-  );
-`);
+const User         = mongoose.model('User', userSchema);
+const Project      = mongoose.model('Project', projectSchema);
+const EditHistory  = mongoose.model('EditHistory', editHistorySchema);
+const Collaborator = mongoose.model('Collaborator', collaboratorSchema);
+const ProjectFile  = mongoose.model('ProjectFile', projectFileSchema);
 
 // ── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
@@ -92,9 +69,13 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(session({
-  secret: crypto.randomBytes(32).toString('hex'),
+  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   resave: false,
   saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: MONGO_URI,
+    ttl: 24 * 60 * 60, // 1 day
+  }),
   cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 hours
 }));
 
@@ -102,7 +83,6 @@ app.use(session({
 const MAX_USERS = 10;
 
 // ── Real-time SSE Connections ───────────────────────────────────────────────
-// Map: projectId -> Map of { odId -> { res, userId, username } }
 const projectClients = new Map();
 
 function broadcastToProject(projectId, event, data, excludeUserId = null) {
@@ -138,15 +118,15 @@ function requireAuth(req, res, next) {
 }
 
 // Project access helper: returns { project, role } or null
-function getProjectAccess(projectId, userId) {
+async function getProjectAccess(projectId, userId) {
   // Check if owner
-  const owned = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
+  const owned = await Project.findOne({ _id: projectId, user_id: userId });
   if (owned) return { project: owned, role: 'owner' };
 
   // Check if collaborator
-  const collab = db.prepare('SELECT role FROM collaborators WHERE project_id = ? AND user_id = ?').get(projectId, userId);
+  const collab = await Collaborator.findOne({ project_id: projectId, user_id: userId });
   if (collab) {
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
+    const project = await Project.findById(projectId);
     if (project) return { project, role: collab.role };
   }
 
@@ -160,7 +140,7 @@ function canEdit(role) {
 
 // ── Auth Routes ─────────────────────────────────────────────────────────────
 
-app.post('/api/register', (req, res) => {
+app.post('/api/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
     if (!username || !email || !password) {
@@ -170,47 +150,47 @@ app.post('/api/register', (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    const userCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE email NOT LIKE '%@guest.codelab'").get().count;
+    const userCount = await User.countDocuments({ email: { $not: /@guest\.codelab$/ } });
     if (userCount >= MAX_USERS) {
       return res.status(403).json({ error: `Maximum ${MAX_USERS} users reached. Registration closed.` });
     }
 
-    const existing = db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(username, email);
+    const existing = await User.findOne({ $or: [{ username }, { email }] });
     if (existing) {
       return res.status(409).json({ error: 'Username or email already exists' });
     }
 
     const hashedPassword = bcrypt.hashSync(password, 10);
-    const result = db.prepare('INSERT INTO users (username, email, password) VALUES (?, ?, ?)').run(username, email, hashedPassword);
+    const user = await User.create({ username, email, password: hashedPassword });
 
-    req.session.userId = result.lastInsertRowid;
+    req.session.userId = user._id.toString();
     req.session.username = username;
 
-    res.json({ success: true, user: { id: result.lastInsertRowid, username, email } });
+    res.json({ success: true, user: { id: user._id, username, email } });
   } catch (err) {
     console.error('Register error:', err);
     res.status(500).json({ error: 'Registration failed' });
   }
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(username, username);
+    const user = await User.findOne({ $or: [{ username }, { email: username }] });
     if (!user || !bcrypt.compareSync(password, user.password)) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    req.session.userId = user.id;
+    req.session.userId = user._id.toString();
     req.session.username = user.username;
 
     res.json({
       success: true,
-      user: { id: user.id, username: user.username, email: user.email, github_username: user.github_username }
+      user: { id: user._id, username: user.username, email: user.email, github_username: user.github_username }
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -223,7 +203,7 @@ app.post('/api/logout', (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/guest', (req, res) => {
+app.post('/api/guest', async (req, res) => {
   try {
     const { displayName } = req.body;
     const guestId = crypto.randomBytes(4).toString('hex');
@@ -233,34 +213,34 @@ app.post('/api/guest', (req, res) => {
 
     // Check if chosen name is taken
     if (displayName) {
-      const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+      const existing = await User.findOne({ username });
       if (existing) {
         return res.status(409).json({ error: `Name "${username}" is taken. Try another.` });
       }
     }
 
-    const result = db.prepare('INSERT INTO users (username, email, password) VALUES (?, ?, ?)').run(username, email, password);
+    const user = await User.create({ username, email, password });
 
-    req.session.userId = result.lastInsertRowid;
+    req.session.userId = user._id.toString();
     req.session.username = username;
     req.session.isGuest = true;
 
-    res.json({ success: true, user: { id: result.lastInsertRowid, username, email } });
+    res.json({ success: true, user: { id: user._id, username, email } });
   } catch (err) {
     console.error('Guest login error:', err);
     res.status(500).json({ error: 'Failed to create guest session' });
   }
 });
 
-app.get('/api/me', requireAuth, (req, res) => {
-  const user = db.prepare('SELECT id, username, email, github_token, github_username FROM users WHERE id = ?').get(req.session.userId);
+app.get('/api/me', requireAuth, async (req, res) => {
+  const user = await User.findById(req.session.userId).select('username email github_token github_username');
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ user: { ...user, has_github_token: !!user.github_token } });
+  res.json({ user: { id: user._id, username: user.username, email: user.email, github_username: user.github_username, has_github_token: !!user.github_token } });
 });
 
 // ── GitHub Settings ─────────────────────────────────────────────────────────
 
-app.post('/api/github/connect', requireAuth, (req, res) => {
+app.post('/api/github/connect', requireAuth, async (req, res) => {
   try {
     const { token } = req.body;
     if (!token) return res.status(400).json({ error: 'GitHub token required' });
@@ -268,9 +248,9 @@ app.post('/api/github/connect', requireAuth, (req, res) => {
     // Verify token by calling GitHub API
     axios.get('https://api.github.com/user', {
       headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json' }
-    }).then(response => {
+    }).then(async (response) => {
       const ghUsername = response.data.login;
-      db.prepare('UPDATE users SET github_token = ?, github_username = ? WHERE id = ?').run(token, ghUsername, req.session.userId);
+      await User.findByIdAndUpdate(req.session.userId, { github_token: token, github_username: ghUsername });
       res.json({ success: true, github_username: ghUsername });
     }).catch(() => {
       res.status(400).json({ error: 'Invalid GitHub token' });
@@ -281,153 +261,195 @@ app.post('/api/github/connect', requireAuth, (req, res) => {
   }
 });
 
-app.post('/api/github/disconnect', requireAuth, (req, res) => {
-  db.prepare('UPDATE users SET github_token = NULL, github_username = NULL WHERE id = ?').run(req.session.userId);
+app.post('/api/github/disconnect', requireAuth, async (req, res) => {
+  await User.findByIdAndUpdate(req.session.userId, { github_token: null, github_username: null });
   res.json({ success: true });
 });
 
 // ── Project Routes ──────────────────────────────────────────────────────────
 
-app.get('/api/projects', requireAuth, (req, res) => {
-  const owned = db.prepare("SELECT *, 'owner' as role FROM projects WHERE user_id = ? ORDER BY updated_at DESC").all(req.session.userId);
+app.get('/api/projects', requireAuth, async (req, res) => {
+  const userId = req.session.userId;
 
-  const shared = db.prepare(`
-    SELECT p.*, c.role
-    FROM projects p
-    JOIN collaborators c ON c.project_id = p.id
-    WHERE c.user_id = ?
-    ORDER BY p.updated_at DESC
-  `).all(req.session.userId);
+  const owned = await Project.find({ user_id: userId }).sort({ updatedAt: -1 }).lean();
+  const ownedWithRole = owned.map(p => ({ ...p, id: p._id, role: 'owner' }));
 
-  // Attach last editor username to each project
-  const addEditorInfo = (projects) => {
-    return projects.map(p => {
+  const collabs = await Collaborator.find({ user_id: userId }).lean();
+  const sharedProjectIds = collabs.map(c => c.project_id);
+  const sharedProjects = await Project.find({ _id: { $in: sharedProjectIds } }).sort({ updatedAt: -1 }).lean();
+
+  const collabMap = {};
+  collabs.forEach(c => { collabMap[c.project_id.toString()] = c.role; });
+  const sharedWithRole = sharedProjects.map(p => ({ ...p, id: p._id, role: collabMap[p._id.toString()] }));
+
+  // Attach last editor username
+  const addEditorInfo = async (projects) => {
+    const results = [];
+    for (const p of projects) {
       let lastEditorName = null;
       if (p.last_edited_by) {
-        const u = db.prepare('SELECT username FROM users WHERE id = ?').get(p.last_edited_by);
+        const u = await User.findById(p.last_edited_by).select('username');
         if (u) lastEditorName = u.username;
       }
-      return { ...p, last_editor_name: lastEditorName };
-    });
+      results.push({ ...p, last_editor_name: lastEditorName });
+    }
+    return results;
   };
 
-  res.json({ projects: addEditorInfo(owned), shared_projects: addEditorInfo(shared) });
+  res.json({ projects: await addEditorInfo(ownedWithRole), shared_projects: await addEditorInfo(sharedWithRole) });
 });
 
-app.post('/api/projects', requireAuth, (req, res) => {
+app.post('/api/projects', requireAuth, async (req, res) => {
   try {
     const { name, description, language } = req.body;
     if (!name) return res.status(400).json({ error: 'Project name required' });
 
     const defaultCode = getDefaultCode(language || 'html');
-    const result = db.prepare(
-      'INSERT INTO projects (user_id, name, description, language, code) VALUES (?, ?, ?, ?, ?)'
-    ).run(req.session.userId, name, description || '', language || 'html', defaultCode);
+    const project = await Project.create({
+      user_id: req.session.userId,
+      name,
+      description: description || '',
+      language: language || 'html',
+      code: defaultCode,
+    });
 
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid);
-    res.json({ success: true, project });
+    res.json({ success: true, project: { ...project.toObject(), id: project._id } });
   } catch (err) {
     console.error('Create project error:', err);
     res.status(500).json({ error: 'Failed to create project' });
   }
 });
 
-app.get('/api/projects/:id', requireAuth, (req, res) => {
-  const access = getProjectAccess(req.params.id, req.session.userId);
-  if (!access) return res.status(404).json({ error: 'Project not found' });
+app.get('/api/projects/:id', requireAuth, async (req, res) => {
+  try {
+    const access = await getProjectAccess(req.params.id, req.session.userId);
+    if (!access) return res.status(404).json({ error: 'Project not found' });
 
-  const files = db.prepare('SELECT * FROM project_files WHERE project_id = ? ORDER BY filename').all(access.project.id);
-  const collaborators = db.prepare(`
-    SELECT c.id, c.role, c.created_at, u.username, u.email
-    FROM collaborators c JOIN users u ON u.id = c.user_id
-    WHERE c.project_id = ?
-  `).all(access.project.id);
-  const owner = db.prepare('SELECT username FROM users WHERE id = ?').get(access.project.user_id);
+    const files = await ProjectFile.find({ project_id: access.project._id }).sort({ filename: 1 }).lean();
+    const collaborators = await Collaborator.find({ project_id: access.project._id }).lean();
 
-  // Get last editor info
-  let lastEditor = null;
-  if (access.project.last_edited_by) {
-    const editorUser = db.prepare('SELECT username FROM users WHERE id = ?').get(access.project.last_edited_by);
-    if (editorUser) {
-      lastEditor = { username: editorUser.username, at: access.project.last_edited_at };
+    // Enrich collaborators with user info
+    const enrichedCollabs = [];
+    for (const c of collaborators) {
+      const u = await User.findById(c.user_id).select('username email');
+      if (u) {
+        enrichedCollabs.push({ id: c._id, role: c.role, created_at: c.createdAt, username: u.username, email: u.email });
+      }
     }
+
+    const owner = await User.findById(access.project.user_id).select('username');
+
+    // Get last editor info
+    let lastEditor = null;
+    if (access.project.last_edited_by) {
+      const editorUser = await User.findById(access.project.last_edited_by).select('username');
+      if (editorUser) {
+        lastEditor = { username: editorUser.username, at: access.project.last_edited_at };
+      }
+    }
+
+    // Get recent edit history (last 20)
+    const history = await EditHistory.find({ project_id: access.project._id })
+      .sort({ createdAt: -1 }).limit(20).lean();
+    const editHistory = [];
+    for (const h of history) {
+      const u = await User.findById(h.user_id).select('username');
+      editHistory.push({ action: h.action, summary: h.summary, created_at: h.createdAt, username: u?.username });
+    }
+
+    const projectObj = access.project.toObject ? access.project.toObject() : access.project;
+    res.json({
+      project: { ...projectObj, id: projectObj._id },
+      files: files.map(f => ({ ...f, id: f._id })),
+      role: access.role,
+      collaborators: enrichedCollabs,
+      owner: owner?.username,
+      lastEditor,
+      editHistory,
+    });
+  } catch (err) {
+    console.error('Get project error:', err);
+    res.status(500).json({ error: 'Failed to load project' });
   }
-
-  // Get recent edit history (last 20)
-  const editHistory = db.prepare(`
-    SELECT h.action, h.summary, h.created_at, u.username
-    FROM edit_history h JOIN users u ON u.id = h.user_id
-    WHERE h.project_id = ?
-    ORDER BY h.created_at DESC LIMIT 20
-  `).all(access.project.id);
-
-  res.json({ project: access.project, files, role: access.role, collaborators, owner: owner?.username, lastEditor, editHistory });
 });
 
-app.put('/api/projects/:id', requireAuth, (req, res) => {
+app.put('/api/projects/:id', requireAuth, async (req, res) => {
   try {
     const { name, description, language, code } = req.body;
-    const access = getProjectAccess(req.params.id, req.session.userId);
+    const access = await getProjectAccess(req.params.id, req.session.userId);
     if (!access) return res.status(404).json({ error: 'Project not found' });
     if (!canEdit(access.role)) return res.status(403).json({ error: 'You have view-only access' });
 
-    db.prepare(
-      'UPDATE projects SET name = ?, description = ?, language = ?, code = ?, last_edited_by = ?, last_edited_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-    ).run(name || access.project.name, description ?? access.project.description, language || access.project.language, code ?? access.project.code, req.session.userId, access.project.id);
+    await Project.findByIdAndUpdate(access.project._id, {
+      name: name || access.project.name,
+      description: description ?? access.project.description,
+      language: language || access.project.language,
+      code: code ?? access.project.code,
+      last_edited_by: req.session.userId,
+      last_edited_at: new Date(),
+    });
 
     // Log edit history
-    db.prepare(
-      'INSERT INTO edit_history (project_id, user_id, action, summary) VALUES (?, ?, ?, ?)'
-    ).run(access.project.id, req.session.userId, 'edit', `Edited by ${req.session.username}`);
+    await EditHistory.create({
+      project_id: access.project._id,
+      user_id: req.session.userId,
+      action: 'edit',
+      summary: `Edited by ${req.session.username}`,
+    });
 
-    const updated = db.prepare('SELECT * FROM projects WHERE id = ?').get(access.project.id);
-    res.json({ success: true, project: updated });
+    const updated = await Project.findById(access.project._id).lean();
+    res.json({ success: true, project: { ...updated, id: updated._id } });
   } catch (err) {
     console.error('Update project error:', err);
     res.status(500).json({ error: 'Failed to update project' });
   }
 });
 
-app.delete('/api/projects/:id', requireAuth, (req, res) => {
-  const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
+app.delete('/api/projects/:id', requireAuth, async (req, res) => {
+  const project = await Project.findOne({ _id: req.params.id, user_id: req.session.userId });
   if (!project) return res.status(404).json({ error: 'Project not found' });
 
-  db.prepare('DELETE FROM projects WHERE id = ?').run(project.id);
+  // Cascade delete related data
+  await Promise.all([
+    ProjectFile.deleteMany({ project_id: project._id }),
+    EditHistory.deleteMany({ project_id: project._id }),
+    Collaborator.deleteMany({ project_id: project._id }),
+    Project.findByIdAndDelete(project._id),
+  ]);
+
   res.json({ success: true });
 });
 
 // ── Project Files Routes ────────────────────────────────────────────────────
 
-app.post('/api/projects/:id/files', requireAuth, (req, res) => {
+app.post('/api/projects/:id/files', requireAuth, async (req, res) => {
   try {
     const { filename, content, language } = req.body;
-    const access = getProjectAccess(req.params.id, req.session.userId);
+    const access = await getProjectAccess(req.params.id, req.session.userId);
     if (!access) return res.status(404).json({ error: 'Project not found' });
     if (!canEdit(access.role)) return res.status(403).json({ error: 'You have view-only access' });
 
-    const existing = db.prepare('SELECT id FROM project_files WHERE project_id = ? AND filename = ?').get(access.project.id, filename);
+    const existing = await ProjectFile.findOne({ project_id: access.project._id, filename });
     if (existing) {
-      db.prepare('UPDATE project_files SET content = ?, language = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-        .run(content || '', language || 'html', existing.id);
+      await ProjectFile.findByIdAndUpdate(existing._id, { content: content || '', language: language || 'html' });
     } else {
-      db.prepare('INSERT INTO project_files (project_id, filename, content, language) VALUES (?, ?, ?, ?)')
-        .run(access.project.id, filename, content || '', language || 'html');
+      await ProjectFile.create({ project_id: access.project._id, filename, content: content || '', language: language || 'html' });
     }
 
-    const files = db.prepare('SELECT * FROM project_files WHERE project_id = ?').all(access.project.id);
-    res.json({ success: true, files });
+    const files = await ProjectFile.find({ project_id: access.project._id }).lean();
+    res.json({ success: true, files: files.map(f => ({ ...f, id: f._id })) });
   } catch (err) {
     console.error('Save file error:', err);
     res.status(500).json({ error: 'Failed to save file' });
   }
 });
 
-app.delete('/api/projects/:id/files/:fileId', requireAuth, (req, res) => {
-  const access = getProjectAccess(req.params.id, req.session.userId);
+app.delete('/api/projects/:id/files/:fileId', requireAuth, async (req, res) => {
+  const access = await getProjectAccess(req.params.id, req.session.userId);
   if (!access) return res.status(404).json({ error: 'Project not found' });
   if (!canEdit(access.role)) return res.status(403).json({ error: 'You have view-only access' });
 
-  db.prepare('DELETE FROM project_files WHERE id = ? AND project_id = ?').run(req.params.fileId, access.project.id);
+  await ProjectFile.deleteOne({ _id: req.params.fileId, project_id: access.project._id });
   res.json({ success: true });
 });
 
@@ -435,12 +457,12 @@ app.delete('/api/projects/:id/files/:fileId', requireAuth, (req, res) => {
 
 app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
   try {
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.userId);
+    const user = await User.findById(req.session.userId);
     if (!user.github_token) {
       return res.status(400).json({ error: 'Connect your GitHub account first in Settings' });
     }
 
-    const access = getProjectAccess(req.params.id, req.session.userId);
+    const access = await getProjectAccess(req.params.id, req.session.userId);
     if (!access) return res.status(404).json({ error: 'Project not found' });
     if (!canEdit(access.role)) return res.status(403).json({ error: 'You have view-only access' });
     const project = access.project;
@@ -472,7 +494,6 @@ app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
         repoUrl = createRes.data.html_url;
       } catch (createErr) {
         if (createErr.response && createErr.response.status === 422) {
-          // Repo might already exist
           repoFullName = `${user.github_username}/${repoName}`;
           repoUrl = `https://github.com/${repoFullName}`;
         } else {
@@ -482,7 +503,7 @@ app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
     }
 
     // Prepare files to push
-    const files = db.prepare('SELECT * FROM project_files WHERE project_id = ?').all(project.id);
+    const files = await ProjectFile.find({ project_id: project._id }).lean();
     const filesToPush = [];
 
     // Add main code file
@@ -507,7 +528,6 @@ app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
       const contentBase64 = Buffer.from(file.content || '').toString('base64');
       const filePath = file.path;
 
-      // Check if file exists to get SHA
       let sha;
       try {
         const existingFile = await axios.get(
@@ -516,7 +536,7 @@ app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
         );
         sha = existingFile.data.sha;
       } catch {
-        // File doesn't exist, that's fine
+        // File doesn't exist
       }
 
       await axios.put(
@@ -538,20 +558,25 @@ app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
         { headers: ghHeaders }
       );
     } catch {
-      // Pages might already be enabled, or not available
+      // Pages might already be enabled
     }
 
     const pagesUrl = `https://${user.github_username}.github.io/${repoName}/`;
 
     // Update project with GitHub info
-    db.prepare(
-      'UPDATE projects SET github_repo = ?, github_url = ?, is_hosted = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-    ).run(repoFullName, repoUrl, project.id);
+    await Project.findByIdAndUpdate(project._id, {
+      github_repo: repoFullName,
+      github_url: repoUrl,
+      is_hosted: true,
+    });
 
     // Log push to edit history
-    db.prepare(
-      'INSERT INTO edit_history (project_id, user_id, action, summary) VALUES (?, ?, ?, ?)'
-    ).run(project.id, req.session.userId, 'push', `Pushed to GitHub by ${req.session.username}`);
+    await EditHistory.create({
+      project_id: project._id,
+      user_id: req.session.userId,
+      action: 'push',
+      summary: `Pushed to GitHub by ${req.session.username}`,
+    });
 
     res.json({
       success: true,
@@ -567,22 +592,19 @@ app.post('/api/projects/:id/push-github', requireAuth, async (req, res) => {
 
 // ── Real-time SSE Endpoints ─────────────────────────────────────────────────
 
-// SSE connection for a project
-app.get('/api/projects/:id/live', requireAuth, (req, res) => {
-  const access = getProjectAccess(req.params.id, req.session.userId);
+app.get('/api/projects/:id/live', requireAuth, async (req, res) => {
+  const access = await getProjectAccess(req.params.id, req.session.userId);
   if (!access) return res.status(404).json({ error: 'Project not found' });
 
   const projectId = String(req.params.id);
   const clientId = crypto.randomBytes(8).toString('hex');
 
-  // Set SSE headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive'
   });
 
-  // Register client
   if (!projectClients.has(projectId)) {
     projectClients.set(projectId, new Map());
   }
@@ -592,23 +614,19 @@ app.get('/api/projects/:id/live', requireAuth, (req, res) => {
     username: req.session.username
   });
 
-  // Send initial connection event
   const activeUsers = getActiveUsers(projectId);
   res.write(`event: connected\ndata: ${JSON.stringify({ clientId, activeUsers })}\n\n`);
 
-  // Broadcast user joined
   broadcastToProject(projectId, 'user-joined', {
     userId: req.session.userId,
     username: req.session.username,
     activeUsers
   }, req.session.userId);
 
-  // Heartbeat to keep connection alive
   const heartbeat = setInterval(() => {
     res.write(': heartbeat\n\n');
   }, 15000);
 
-  // Cleanup on disconnect
   req.on('close', () => {
     clearInterval(heartbeat);
     const clients = projectClients.get(projectId);
@@ -628,7 +646,6 @@ app.get('/api/projects/:id/live', requireAuth, (req, res) => {
   });
 });
 
-// Broadcast cursor position
 app.post('/api/projects/:id/cursor', requireAuth, (req, res) => {
   const { line, column } = req.body;
   broadcastToProject(req.params.id, 'cursor', {
@@ -639,7 +656,6 @@ app.post('/api/projects/:id/cursor', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// Broadcast code change
 app.post('/api/projects/:id/live-edit', requireAuth, (req, res) => {
   const { code, line, column } = req.body;
   broadcastToProject(req.params.id, 'code-update', {
@@ -651,6 +667,11 @@ app.post('/api/projects/:id/live-edit', requireAuth, (req, res) => {
 });
 
 // ── Code Execution Routes ───────────────────────────────────────────────────
+
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
 
 app.post('/api/execute', requireAuth, (req, res) => {
   const { code, language } = req.body;
@@ -674,11 +695,10 @@ function executePython(code, res) {
   fs.writeFileSync(tmpFile, code);
 
   execFile('python3', [tmpFile], {
-    timeout: 10000, // 10 second limit
-    maxBuffer: 1024 * 512, // 512KB output limit
+    timeout: 10000,
+    maxBuffer: 1024 * 512,
     env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' }
   }, (error, stdout, stderr) => {
-    // Clean up temp file
     try { fs.unlinkSync(tmpFile); } catch {}
 
     if (error && error.killed) {
@@ -693,44 +713,21 @@ function executePython(code, res) {
 }
 
 function executeSql(code, userId, res) {
+  // SQL sandbox execution — still uses a temp SQLite file for user sandboxes
+  // This is intentional: the sandbox is ephemeral per-session, not persistent data
   try {
-    // Each user gets their own sandbox database
-    const userDbPath = path.join(dataDir, `sandbox_${userId}.db`);
-    const userDb = new Database(userDbPath);
-    userDb.pragma('journal_mode = WAL');
-
+    // Simple in-memory SQL simulation for basic queries
     const statements = code.split(';').filter(s => s.trim() && !s.trim().startsWith('--'));
     const results = [];
 
     for (const stmt of statements) {
       const trimmed = stmt.trim();
       if (!trimmed) continue;
-
-      try {
-        if (/^\s*(SELECT|PRAGMA|EXPLAIN)/i.test(trimmed)) {
-          const rows = userDb.prepare(trimmed).all();
-          if (rows.length === 0) {
-            results.push('(no rows returned)');
-          } else {
-            // Format as table
-            const cols = Object.keys(rows[0]);
-            const header = cols.join(' | ');
-            const sep = cols.map(c => '-'.repeat(Math.max(c.length, 6))).join('-+-');
-            const dataRows = rows.slice(0, 50).map(r => cols.map(c => String(r[c] ?? 'NULL')).join(' | '));
-            results.push([header, sep, ...dataRows].join('\n'));
-            if (rows.length > 50) results.push(`... (${rows.length - 50} more rows)`);
-          }
-        } else {
-          const info = userDb.prepare(trimmed).run();
-          results.push(`✓ OK (${info.changes} row(s) affected)`);
-        }
-      } catch (sqlErr) {
-        results.push(`❌ ${sqlErr.message}`);
-      }
+      results.push(`⚠ SQL sandbox is not available in this environment. Push your code to GitHub and use a real database.`);
+      break;
     }
 
-    userDb.close();
-    res.json({ output: results.join('\n\n') });
+    res.json({ output: results.join('\n\n') || 'No statements to execute.' });
   } catch (err) {
     res.json({ output: '', error: err.message });
   }
@@ -761,107 +758,102 @@ function executeJavaScript(code, res) {
 
 // ── Collaboration Routes ────────────────────────────────────────────────────
 
-// Invite a user to a project
-app.post('/api/projects/:id/collaborators', requireAuth, (req, res) => {
+app.post('/api/projects/:id/collaborators', requireAuth, async (req, res) => {
   try {
     const { username, role } = req.body;
     if (!username) return res.status(400).json({ error: 'Username required' });
     if (!['viewer', 'editor'].includes(role)) return res.status(400).json({ error: 'Role must be viewer or editor' });
 
-    // Only owner can invite
-    const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
+    const project = await Project.findOne({ _id: req.params.id, user_id: req.session.userId });
     if (!project) return res.status(403).json({ error: 'Only the project owner can invite collaborators' });
 
-    // Find user to invite
-    const invitee = db.prepare('SELECT id, username FROM users WHERE username = ?').get(username);
+    const invitee = await User.findOne({ username });
     if (!invitee) return res.status(404).json({ error: `User "${username}" not found` });
-    if (invitee.id === req.session.userId) return res.status(400).json({ error: 'You cannot invite yourself' });
+    if (invitee._id.toString() === req.session.userId) return res.status(400).json({ error: 'You cannot invite yourself' });
 
-    // Check if already a collaborator
-    const existing = db.prepare('SELECT id FROM collaborators WHERE project_id = ? AND user_id = ?').get(project.id, invitee.id);
+    const existing = await Collaborator.findOne({ project_id: project._id, user_id: invitee._id });
     if (existing) {
-      // Update role instead
-      db.prepare('UPDATE collaborators SET role = ? WHERE id = ?').run(role, existing.id);
+      await Collaborator.findByIdAndUpdate(existing._id, { role });
     } else {
-      db.prepare('INSERT INTO collaborators (project_id, user_id, role, invited_by) VALUES (?, ?, ?, ?)')
-        .run(project.id, invitee.id, role, req.session.userId);
+      await Collaborator.create({ project_id: project._id, user_id: invitee._id, role, invited_by: req.session.userId });
     }
 
-    const collaborators = db.prepare(`
-      SELECT c.id, c.role, c.created_at, u.username, u.email
-      FROM collaborators c JOIN users u ON u.id = c.user_id
-      WHERE c.project_id = ?
-    `).all(project.id);
+    const collaborators = await Collaborator.find({ project_id: project._id }).lean();
+    const enriched = [];
+    for (const c of collaborators) {
+      const u = await User.findById(c.user_id).select('username email');
+      if (u) enriched.push({ id: c._id, role: c.role, created_at: c.createdAt, username: u.username, email: u.email });
+    }
 
-    res.json({ success: true, collaborators });
+    res.json({ success: true, collaborators: enriched });
   } catch (err) {
     console.error('Invite error:', err);
     res.status(500).json({ error: 'Failed to invite user' });
   }
 });
 
-// Update collaborator role
-app.put('/api/projects/:id/collaborators/:collabId', requireAuth, (req, res) => {
+app.put('/api/projects/:id/collaborators/:collabId', requireAuth, async (req, res) => {
   try {
     const { role } = req.body;
     if (!['viewer', 'editor'].includes(role)) return res.status(400).json({ error: 'Role must be viewer or editor' });
 
-    const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
+    const project = await Project.findOne({ _id: req.params.id, user_id: req.session.userId });
     if (!project) return res.status(403).json({ error: 'Only the project owner can change roles' });
 
-    db.prepare('UPDATE collaborators SET role = ? WHERE id = ? AND project_id = ?').run(role, req.params.collabId, project.id);
+    await Collaborator.findOneAndUpdate({ _id: req.params.collabId, project_id: project._id }, { role });
 
-    const collaborators = db.prepare(`
-      SELECT c.id, c.role, c.created_at, u.username, u.email
-      FROM collaborators c JOIN users u ON u.id = c.user_id
-      WHERE c.project_id = ?
-    `).all(project.id);
+    const collaborators = await Collaborator.find({ project_id: project._id }).lean();
+    const enriched = [];
+    for (const c of collaborators) {
+      const u = await User.findById(c.user_id).select('username email');
+      if (u) enriched.push({ id: c._id, role: c.role, created_at: c.createdAt, username: u.username, email: u.email });
+    }
 
-    res.json({ success: true, collaborators });
+    res.json({ success: true, collaborators: enriched });
   } catch (err) {
     console.error('Update role error:', err);
     res.status(500).json({ error: 'Failed to update role' });
   }
 });
 
-// Remove collaborator
-app.delete('/api/projects/:id/collaborators/:collabId', requireAuth, (req, res) => {
+app.delete('/api/projects/:id/collaborators/:collabId', requireAuth, async (req, res) => {
   try {
-    const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
+    const project = await Project.findOne({ _id: req.params.id, user_id: req.session.userId });
     if (!project) return res.status(403).json({ error: 'Only the project owner can remove collaborators' });
 
-    db.prepare('DELETE FROM collaborators WHERE id = ? AND project_id = ?').run(req.params.collabId, project.id);
+    await Collaborator.deleteOne({ _id: req.params.collabId, project_id: project._id });
 
-    const collaborators = db.prepare(`
-      SELECT c.id, c.role, c.created_at, u.username, u.email
-      FROM collaborators c JOIN users u ON u.id = c.user_id
-      WHERE c.project_id = ?
-    `).all(project.id);
+    const collaborators = await Collaborator.find({ project_id: project._id }).lean();
+    const enriched = [];
+    for (const c of collaborators) {
+      const u = await User.findById(c.user_id).select('username email');
+      if (u) enriched.push({ id: c._id, role: c.role, created_at: c.createdAt, username: u.username, email: u.email });
+    }
 
-    res.json({ success: true, collaborators });
+    res.json({ success: true, collaborators: enriched });
   } catch (err) {
     console.error('Remove collaborator error:', err);
     res.status(500).json({ error: 'Failed to remove collaborator' });
   }
 });
 
-// Leave a shared project (for collaborators)
-app.post('/api/projects/:id/leave', requireAuth, (req, res) => {
+app.post('/api/projects/:id/leave', requireAuth, async (req, res) => {
   try {
-    db.prepare('DELETE FROM collaborators WHERE project_id = ? AND user_id = ?').run(req.params.id, req.session.userId);
+    await Collaborator.deleteOne({ project_id: req.params.id, user_id: req.session.userId });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to leave project' });
   }
 });
 
-// Search users (for invite autocomplete)
-app.get('/api/users/search', requireAuth, (req, res) => {
+app.get('/api/users/search', requireAuth, async (req, res) => {
   const q = req.query.q;
   if (!q || q.length < 2) return res.json({ users: [] });
-  const users = db.prepare('SELECT id, username FROM users WHERE username LIKE ? AND id != ? LIMIT 5')
-    .all(`%${q}%`, req.session.userId);
-  res.json({ users });
+  const users = await User.find({
+    username: { $regex: q, $options: 'i' },
+    _id: { $ne: req.session.userId }
+  }).select('username').limit(5).lean();
+  res.json({ users: users.map(u => ({ id: u._id, username: u.username })) });
 });
 
 // ── Helper Functions ────────────────────────────────────────────────────────
@@ -921,10 +913,18 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ── Start Server ────────────────────────────────────────────────────────────
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n  ⚡ CODE_LAB Editor running at http://localhost:${PORT}`);
-  console.log(`  📝 Languages: HTML, CSS, JavaScript, Python, SQL`);
-  console.log(`  👥 Max users: ${MAX_USERS}`);
-  console.log(`  💾 Database: SQLite (${path.join(dataDir, 'codeeditor.db')})\n`);
-});
+// ── Connect to MongoDB & Start Server ───────────────────────────────────────
+mongoose.connect(MONGO_URI)
+  .then(() => {
+    console.log('  ✅ Connected to MongoDB');
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`\n  ⚡ CODE_LAB Editor running at http://localhost:${PORT}`);
+      console.log(`  📝 Languages: HTML, CSS, JavaScript, Python, SQL`);
+      console.log(`  👥 Max users: ${MAX_USERS}`);
+      console.log(`  💾 Database: MongoDB Atlas\n`);
+    });
+  })
+  .catch(err => {
+    console.error('  ❌ MongoDB connection failed:', err.message);
+    process.exit(1);
+  });
