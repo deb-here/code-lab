@@ -3,1092 +3,1229 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CODE_LAB ⚡ Futuristic Code Editor</title>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <title>CodeLab ⚡ IDE</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
   <style>
-    /* ── CSS Reset & Base ─────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg-primary: #050510;
-      --bg-secondary: #0a0a1f;
-      --bg-tertiary: #10102a;
-      --bg-card: #0d0d25;
-      --neon-green: #00ff88;
-      --neon-blue: #00d4ff;
-      --neon-purple: #b44dff;
-      --neon-pink: #ff2d95;
-      --neon-orange: #ff8c00;
-      --neon-yellow: #ffd700;
-      --text-primary: #e8e8ff;
-      --text-secondary: #8888aa;
-      --text-dim: #555577;
-      --border-color: #1a1a3a;
-      --glow-green: 0 0 20px rgba(0,255,136,0.3);
-      --glow-blue: 0 0 20px rgba(0,212,255,0.3);
-      --glow-purple: 0 0 20px rgba(180,77,255,0.3);
-      --radius: 12px;
-      --radius-sm: 8px;
-      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      --bg-primary: #1e1e2e;
+      --bg-secondary: #181825;
+      --bg-tertiary: #11111b;
+      --bg-surface: #313244;
+      --bg-hover: #45475a;
+      --bg-card: #1e1e2e;
+      --accent: #89b4fa;
+      --accent-green: #a6e3a1;
+      --accent-red: #f38ba8;
+      --accent-yellow: #f9e2af;
+      --accent-peach: #fab387;
+      --accent-mauve: #cba6f7;
+      --accent-teal: #94e2d5;
+      --accent-blue: #89b4fa;
+      --text-primary: #cdd6f4;
+      --text-secondary: #a6adc8;
+      --text-dim: #6c7086;
+      --border-color: #313244;
+      --border-active: #585b70;
+      --radius: 8px;
+      --radius-sm: 4px;
+      --transition: all 0.15s ease;
+      --sidebar-width: 260px;
+      --titlebar-height: 38px;
+      --tab-height: 36px;
+      --statusbar-height: 24px;
+      --activitybar-width: 48px;
     }
 
     body {
-      font-family: 'Inter', system-ui, sans-serif;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background: var(--bg-primary);
       color: var(--text-primary);
       min-height: 100vh;
-      overflow-x: hidden;
+      overflow: hidden;
+      font-size: 13px;
     }
 
-    /* ── Animated Background ──────────────────────────────────────────── */
-    .bg-grid {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background-image:
-        linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
-      background-size: 50px 50px;
-      z-index: 0;
-      pointer-events: none;
-    }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+    ::-webkit-scrollbar-corner { background: transparent; }
 
-    .bg-orbs {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      z-index: 0; pointer-events: none; overflow: hidden;
-    }
-
-    .bg-orbs::before {
-      content: ''; position: absolute; top: -50%; left: -50%;
-      width: 200%; height: 200%;
-      background: radial-gradient(ellipse at 20% 50%, rgba(0,255,136,0.06) 0%, transparent 50%),
-                  radial-gradient(ellipse at 80% 20%, rgba(0,212,255,0.06) 0%, transparent 50%),
-                  radial-gradient(ellipse at 50% 80%, rgba(180,77,255,0.04) 0%, transparent 50%);
-      animation: orbFloat 20s ease-in-out infinite;
-    }
-
-    @keyframes orbFloat {
-      0%, 100% { transform: translate(0, 0) rotate(0deg); }
-      33% { transform: translate(30px, -30px) rotate(120deg); }
-      66% { transform: translate(-20px, 20px) rotate(240deg); }
-    }
-
-    /* ── Scrollbar ────────────────────────────────────────────────────── */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: var(--bg-secondary); }
-    ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--neon-green); }
-
-    /* ── Utility ──────────────────────────────────────────────────────── */
     .hidden { display: none !important; }
 
-    .container {
-      position: relative; z-index: 1;
-      max-width: 1400px; margin: 0 auto; padding: 0 24px;
-    }
-
-    /* ── Navigation ───────────────────────────────────────────────────── */
-    .navbar {
-      position: sticky; top: 0; z-index: 100;
-      background: rgba(5,5,16,0.85);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border-color);
-      padding: 0 24px;
-    }
-
-    .navbar-inner {
-      max-width: 1400px; margin: 0 auto;
-      display: flex; align-items: center; justify-content: space-between;
-      height: 64px;
-    }
-
-    .logo {
-      font-family: 'Orbitron', monospace;
-      font-weight: 900; font-size: 1.5rem;
-      background: linear-gradient(135deg, var(--neon-green), var(--neon-blue));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      text-decoration: none;
-      cursor: pointer;
-    }
-
-    .logo span { font-weight: 400; opacity: 0.7; }
-
-    .nav-actions { display: flex; gap: 12px; align-items: center; }
-
-    .nav-user {
-      display: flex; align-items: center; gap: 10px;
-      color: var(--text-secondary); font-size: 0.9rem;
-    }
-
-    .nav-user .avatar {
-      width: 32px; height: 32px; border-radius: 50%;
-      background: linear-gradient(135deg, var(--neon-green), var(--neon-blue));
+    /* ── Auth Page ─────────────────────────────────── */
+    .auth-page {
       display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 0.85rem; color: var(--bg-primary);
+      min-height: 100vh; padding: 20px;
+      background: var(--bg-tertiary);
     }
-
-    /* ── Buttons ──────────────────────────────────────────────────────── */
-    .btn {
-      padding: 10px 20px; border-radius: var(--radius-sm);
-      border: none; cursor: pointer; font-family: 'Inter', sans-serif;
-      font-size: 0.9rem; font-weight: 600;
-      transition: var(--transition); display: inline-flex;
-      align-items: center; gap: 8px; text-decoration: none;
+    .auth-container { width: 100%; max-width: 420px; }
+    .auth-header { text-align: center; margin-bottom: 32px; }
+    .auth-header h1 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.8rem; font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 6px;
     }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--neon-green), #00cc6a);
-      color: var(--bg-primary);
-      box-shadow: var(--glow-green);
-    }
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 0 30px rgba(0,255,136,0.5);
-    }
-
-    .btn-secondary {
-      background: transparent;
+    .auth-header p { color: var(--text-secondary); font-size: 0.9rem; }
+    .auth-card {
+      background: var(--bg-primary);
       border: 1px solid var(--border-color);
-      color: var(--text-primary);
+      border-radius: var(--radius);
+      padding: 28px;
     }
-    .btn-secondary:hover {
-      border-color: var(--neon-blue);
-      color: var(--neon-blue);
-      box-shadow: var(--glow-blue);
+    .auth-card h2 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.1rem; margin-bottom: 20px;
+      color: var(--accent);
     }
-
-    .btn-danger {
-      background: rgba(255,45,45,0.1);
-      border: 1px solid rgba(255,45,45,0.3);
-      color: #ff4d4d;
+    .auth-toggle {
+      text-align: center; margin-top: 16px;
+      color: var(--text-secondary); font-size: 0.85rem;
     }
-    .btn-danger:hover {
-      background: rgba(255,45,45,0.2);
-      box-shadow: 0 0 20px rgba(255,45,45,0.3);
+    .auth-toggle a {
+      color: var(--accent); text-decoration: none; font-weight: 600; cursor: pointer;
     }
-
-    .btn-github {
-      background: linear-gradient(135deg, #333, #555);
-      color: #fff;
+    .auth-toggle a:hover { text-decoration: underline; }
+    .auth-error {
+      background: rgba(243,139,168,0.1);
+      border: 1px solid rgba(243,139,168,0.3);
+      color: var(--accent-red); padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem; margin-bottom: 14px;
     }
-    .btn-github:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 0 20px rgba(255,255,255,0.1);
-    }
-
-    .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
-    .btn-lg { padding: 14px 32px; font-size: 1rem; }
-
-    .btn:disabled {
-      opacity: 0.5; cursor: not-allowed; transform: none !important;
+    .auth-success {
+      background: rgba(166,227,161,0.1);
+      border: 1px solid rgba(166,227,161,0.3);
+      color: var(--accent-green); padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem; margin-bottom: 14px;
     }
 
-    /* ── Forms ────────────────────────────────────────────────────────── */
-    .form-group { margin-bottom: 20px; }
-
+    /* ── Forms ─────────────────────────────────────── */
+    .form-group { margin-bottom: 16px; }
     .form-label {
-      display: block; margin-bottom: 8px;
-      font-size: 0.85rem; font-weight: 600;
+      display: block; margin-bottom: 6px;
+      font-size: 0.8rem; font-weight: 600;
       color: var(--text-secondary);
-      text-transform: uppercase; letter-spacing: 1px;
+      text-transform: uppercase; letter-spacing: 0.5px;
     }
-
     .form-input {
-      width: 100%; padding: 12px 16px;
+      width: 100%; padding: 9px 12px;
       background: var(--bg-secondary);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-sm);
       color: var(--text-primary);
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       transition: var(--transition);
     }
-
     .form-input:focus {
       outline: none;
-      border-color: var(--neon-green);
-      box-shadow: var(--glow-green);
+      border-color: var(--accent);
     }
-
     .form-input::placeholder { color: var(--text-dim); }
-
     select.form-input {
       appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2388a' viewBox='0 0 16 16'%3E%3Cpath d='M8 12L2 6h12z'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%236c7086' viewBox='0 0 16 16'%3E%3Cpath d='M8 12L2 6h12z'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
-      background-position: right 12px center;
-      padding-right: 36px;
+      background-position: right 10px center;
+      padding-right: 30px;
     }
 
-    /* ── Cards ────────────────────────────────────────────────────────── */
-    .card {
-      background: var(--bg-card);
+    /* ── Buttons ───────────────────────────────────── */
+    .btn {
+      padding: 8px 16px; border-radius: var(--radius-sm);
+      border: none; cursor: pointer; font-family: 'Inter', sans-serif;
+      font-size: 0.82rem; font-weight: 600;
+      transition: var(--transition); display: inline-flex;
+      align-items: center; gap: 6px; text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg-tertiary);
+    }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-secondary {
+      background: var(--bg-surface);
       border: 1px solid var(--border-color);
-      border-radius: var(--radius);
-      padding: 24px;
-      transition: var(--transition);
+      color: var(--text-primary);
     }
-
-    .card:hover {
-      border-color: rgba(0,255,136,0.3);
-      box-shadow: var(--glow-green);
+    .btn-secondary:hover { background: var(--bg-hover); border-color: var(--border-active); }
+    .btn-danger {
+      background: rgba(243,139,168,0.15);
+      border: 1px solid rgba(243,139,168,0.3);
+      color: var(--accent-red);
     }
+    .btn-danger:hover { background: rgba(243,139,168,0.25); }
+    .btn-github {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+    }
+    .btn-github:hover { background: var(--bg-hover); }
+    .btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+    .btn-lg { padding: 10px 24px; font-size: 0.9rem; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    /* ── Auth Pages ───────────────────────────────────────────────────── */
-    .auth-page {
+    /* ── Dashboard / Projects View ─────────────────── */
+    .app-shell { display: flex; flex-direction: column; height: 100vh; }
+    .navbar {
+      height: var(--titlebar-height);
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-color);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px;
+      -webkit-app-region: drag;
+      flex-shrink: 0;
+    }
+    .navbar-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%;
+    }
+    .logo {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700; font-size: 0.85rem;
+      color: var(--accent);
+      cursor: pointer; text-decoration: none;
+      display: flex; align-items: center; gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+    .logo span { color: var(--text-dim); font-weight: 400; }
+    .nav-actions { display: flex; gap: 8px; align-items: center; -webkit-app-region: no-drag; }
+    .nav-btn {
+      padding: 3px 10px; border-radius: var(--radius-sm);
+      border: none; background: transparent; color: var(--text-secondary);
+      font-size: 0.78rem; cursor: pointer; font-family: 'Inter', sans-serif;
+      transition: var(--transition); display: inline-flex; align-items: center; gap: 4px;
+    }
+    .nav-btn:hover { background: var(--bg-surface); color: var(--text-primary); }
+    .nav-user {
+      display: flex; align-items: center; gap: 6px;
+      color: var(--text-secondary); font-size: 0.8rem;
+    }
+    .avatar {
+      width: 22px; height: 22px; border-radius: 4px;
+      background: var(--accent);
       display: flex; align-items: center; justify-content: center;
-      min-height: 100vh; padding: 20px;
+      font-weight: 700; font-size: 0.7rem; color: var(--bg-tertiary);
     }
 
-    .auth-container {
-      width: 100%; max-width: 440px;
+    .dashboard {
+      flex: 1; overflow-y: auto; padding: 32px 40px;
     }
-
-    .auth-header {
-      text-align: center; margin-bottom: 40px;
-    }
-
-    .auth-header h1 {
-      font-family: 'Orbitron', monospace;
-      font-size: 2.5rem; font-weight: 900;
-      background: linear-gradient(135deg, var(--neon-green), var(--neon-blue));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      margin-bottom: 8px;
-    }
-
-    .auth-header p {
-      color: var(--text-secondary); font-size: 1rem;
-    }
-
-    .auth-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius);
-      padding: 32px;
-    }
-
-    .auth-card h2 {
-      font-family: 'Orbitron', monospace;
-      font-size: 1.3rem; margin-bottom: 24px;
-      color: var(--neon-green);
-    }
-
-    .auth-toggle {
-      text-align: center; margin-top: 20px;
-      color: var(--text-secondary); font-size: 0.9rem;
-    }
-
-    .auth-toggle a {
-      color: var(--neon-blue); text-decoration: none; font-weight: 600;
-      cursor: pointer;
-    }
-    .auth-toggle a:hover { text-decoration: underline; }
-
-    .auth-error {
-      background: rgba(255,45,45,0.1);
-      border: 1px solid rgba(255,45,45,0.3);
-      color: #ff6b6b; padding: 10px 14px;
-      border-radius: var(--radius-sm);
-      font-size: 0.85rem; margin-bottom: 16px;
-    }
-
-    .auth-success {
-      background: rgba(0,255,136,0.1);
-      border: 1px solid rgba(0,255,136,0.3);
-      color: var(--neon-green); padding: 10px 14px;
-      border-radius: var(--radius-sm);
-      font-size: 0.85rem; margin-bottom: 16px;
-    }
-
-    /* ── Dashboard ────────────────────────────────────────────────────── */
-    .dashboard { padding: 40px 0; }
-
     .dashboard-header {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 32px; flex-wrap: wrap; gap: 16px;
+      margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
     }
-
     .dashboard-header h1 {
-      font-family: 'Orbitron', monospace;
-      font-size: 1.8rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.3rem; font-weight: 700;
     }
-
     .stats-bar {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px; margin-bottom: 32px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px; margin-bottom: 24px;
     }
-
     .stat-card {
-      background: var(--bg-card);
+      background: var(--bg-secondary);
       border: 1px solid var(--border-color);
       border-radius: var(--radius);
-      padding: 20px; text-align: center;
+      padding: 16px; text-align: center;
     }
-
-    .stat-card .stat-value {
-      font-family: 'Orbitron', monospace;
-      font-size: 2rem; font-weight: 900;
-      background: linear-gradient(135deg, var(--neon-green), var(--neon-blue));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    .stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.5rem; font-weight: 700;
+      color: var(--accent);
     }
-
-    .stat-card .stat-label {
-      font-size: 0.8rem; color: var(--text-secondary);
-      text-transform: uppercase; letter-spacing: 1px;
-      margin-top: 4px;
+    .stat-label {
+      font-size: 0.75rem; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-top: 2px;
     }
-
     .projects-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
     }
-
     .project-card {
-      background: var(--bg-card);
+      background: var(--bg-secondary);
       border: 1px solid var(--border-color);
       border-radius: var(--radius);
-      padding: 24px;
+      padding: 20px; cursor: pointer;
       transition: var(--transition);
-      cursor: pointer;
-      position: relative;
-      overflow: hidden;
+      position: relative; overflow: hidden;
     }
-
     .project-card::before {
       content: ''; position: absolute; top: 0; left: 0;
-      width: 100%; height: 3px;
-      background: linear-gradient(90deg, var(--neon-green), var(--neon-blue), var(--neon-purple));
+      width: 100%; height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-mauve));
     }
-
     .project-card:hover {
-      border-color: rgba(0,255,136,0.3);
-      transform: translateY(-4px);
-      box-shadow: var(--glow-green);
+      border-color: var(--border-active);
+      background: var(--bg-surface);
     }
-
     .project-card h3 {
-      font-family: 'Orbitron', monospace;
-      font-size: 1.1rem; margin-bottom: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95rem; margin-bottom: 6px;
     }
-
     .project-card .project-desc {
-      color: var(--text-secondary); font-size: 0.85rem;
-      margin-bottom: 16px; line-height: 1.5;
+      color: var(--text-secondary); font-size: 0.8rem;
+      margin-bottom: 12px; line-height: 1.4;
     }
-
     .project-card .project-meta {
-      display: flex; align-items: center; justify-content: space-between;
-      flex-wrap: wrap; gap: 8px;
+      display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
     }
-
     .lang-badge {
-      padding: 4px 10px; border-radius: 20px;
-      font-size: 0.75rem; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 2px 8px; border-radius: 3px;
+      font-size: 0.7rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.3px;
     }
-
-    .lang-html { background: rgba(255,100,50,0.15); color: #ff8c50; border: 1px solid rgba(255,100,50,0.3); }
-    .lang-css { background: rgba(0,150,255,0.15); color: #4da6ff; border: 1px solid rgba(0,150,255,0.3); }
-    .lang-javascript { background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid rgba(255,215,0,0.3); }
-    .lang-python { background: rgba(0,255,136,0.15); color: var(--neon-green); border: 1px solid rgba(0,255,136,0.3); }
-    .lang-sql { background: rgba(180,77,255,0.15); color: var(--neon-purple); border: 1px solid rgba(180,77,255,0.3); }
-
+    .lang-html { background: rgba(250,179,135,0.15); color: var(--accent-peach); }
+    .lang-css { background: rgba(137,180,250,0.15); color: var(--accent-blue); }
+    .lang-javascript { background: rgba(249,226,175,0.15); color: var(--accent-yellow); }
+    .lang-python { background: rgba(166,227,161,0.15); color: var(--accent-green); }
+    .lang-sql { background: rgba(203,166,247,0.15); color: var(--accent-mauve); }
     .hosted-badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 4px 10px; border-radius: 20px;
-      background: rgba(0,255,136,0.1);
-      border: 1px solid rgba(0,255,136,0.3);
-      color: var(--neon-green);
-      font-size: 0.75rem; font-weight: 600;
+      padding: 2px 8px; border-radius: 3px;
+      background: rgba(166,227,161,0.1); color: var(--accent-green);
+      font-size: 0.7rem; font-weight: 600;
     }
-
-    .project-date {
-      font-size: 0.75rem; color: var(--text-dim);
+    .shared-badge {
+      padding: 2px 8px; border-radius: 3px;
+      background: rgba(137,180,250,0.1); color: var(--accent-blue);
+      font-size: 0.7rem; font-weight: 600;
     }
-
+    .project-date { font-size: 0.7rem; color: var(--text-dim); }
     .new-project-card {
       display: flex; align-items: center; justify-content: center;
-      flex-direction: column; gap: 12px;
-      border: 2px dashed var(--border-color);
-      background: transparent;
-      min-height: 180px; cursor: pointer;
-      transition: var(--transition);
+      flex-direction: column; gap: 8px;
+      border: 1px dashed var(--border-color);
+      background: transparent; min-height: 160px;
+      cursor: pointer; transition: var(--transition);
     }
-
     .new-project-card::before { display: none; }
-
     .new-project-card:hover {
-      border-color: var(--neon-green);
-      background: rgba(0,255,136,0.03);
+      border-color: var(--accent);
+      background: rgba(137,180,250,0.03);
     }
-
     .new-project-card .plus-icon {
-      width: 48px; height: 48px; border-radius: 50%;
-      background: rgba(0,255,136,0.1);
-      border: 2px solid rgba(0,255,136,0.3);
+      width: 40px; height: 40px; border-radius: 8px;
+      background: var(--bg-surface);
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.5rem; color: var(--neon-green);
+      font-size: 1.3rem; color: var(--accent);
+    }
+    .new-project-card span { color: var(--text-secondary); font-weight: 500; font-size: 0.85rem; }
+    .shared-section-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem; color: var(--accent-blue);
+      margin: 24px 0 12px; padding-bottom: 6px;
+      border-bottom: 1px solid var(--border-color);
     }
 
-    .new-project-card span {
-      color: var(--text-secondary); font-weight: 600;
+    /* ── Settings ──────────────────────────────────── */
+    .settings-page { flex: 1; overflow-y: auto; padding: 32px 40px; }
+    .settings-section {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 20px; margin-bottom: 20px;
+    }
+    .settings-section h2 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95rem; margin-bottom: 14px;
+      color: var(--accent);
+    }
+    .github-connected {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px;
+      background: rgba(166,227,161,0.05);
+      border: 1px solid rgba(166,227,161,0.15);
+      border-radius: var(--radius-sm);
+    }
+    .github-connected .gh-avatar {
+      width: 36px; height: 36px; border-radius: 6px;
+      background: var(--bg-surface);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
     }
 
-    /* ── Modal ────────────────────────────────────────────────────────── */
+    /* ── Modal ─────────────────────────────────────── */
     .modal-overlay {
-      position: fixed; top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.7);
-      backdrop-filter: blur(8px);
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
       z-index: 1000;
       display: flex; align-items: center; justify-content: center;
       padding: 20px;
     }
-
     .modal {
-      background: var(--bg-card);
+      background: var(--bg-primary);
       border: 1px solid var(--border-color);
       border-radius: var(--radius);
-      padding: 32px; width: 100%; max-width: 500px;
-      box-shadow: 0 0 60px rgba(0,0,0,0.5);
+      padding: 24px; width: 100%; max-width: 480px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     }
-
     .modal h2 {
-      font-family: 'Orbitron', monospace;
-      font-size: 1.3rem; margin-bottom: 24px;
-      color: var(--neon-green);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1rem; margin-bottom: 18px;
+      color: var(--accent);
     }
-
     .modal-actions {
-      display: flex; gap: 12px; justify-content: flex-end;
-      margin-top: 24px;
+      display: flex; gap: 8px; justify-content: flex-end;
+      margin-top: 18px;
     }
 
-    /* ── Editor Page ──────────────────────────────────────────────────── */
-    .editor-page {
-      height: 100vh; display: flex; flex-direction: column;
+    /* ── VS Code IDE Layout ────────────────────────── */
+    .ide-layout {
+      display: flex; flex-direction: column; height: 100vh;
     }
 
-    .editor-toolbar {
-      display: flex; align-items: center; gap: 12px;
-      padding: 10px 16px;
-      background: var(--bg-secondary);
+    /* Title Bar */
+    .ide-titlebar {
+      height: var(--titlebar-height);
+      background: var(--bg-tertiary);
       border-bottom: 1px solid var(--border-color);
-      flex-wrap: wrap;
+      display: flex; align-items: center;
+      padding: 0 12px;
+      flex-shrink: 0;
+      gap: 12px;
     }
-
-    .editor-toolbar .project-name {
-      font-family: 'Orbitron', monospace;
-      font-size: 1rem; font-weight: 700;
-      color: var(--neon-green);
+    .ide-breadcrumb {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.8rem; color: var(--text-secondary);
       flex-shrink: 0;
     }
-
-    .editor-toolbar .separator {
-      width: 1px; height: 24px;
-      background: var(--border-color);
-    }
-
-    .toolbar-group {
-      display: flex; align-items: center; gap: 8px;
-    }
-
-    .toolbar-btn {
-      padding: 6px 12px; border-radius: 6px;
-      border: 1px solid var(--border-color);
-      background: transparent; color: var(--text-primary);
-      cursor: pointer; font-size: 0.8rem;
-      font-family: 'Inter', sans-serif;
-      transition: var(--transition);
-      display: inline-flex; align-items: center; gap: 6px;
-    }
-
-    .toolbar-btn:hover {
-      border-color: var(--neon-green);
-      color: var(--neon-green);
-      box-shadow: 0 0 10px rgba(0,255,136,0.2);
-    }
-
-    .toolbar-btn.active {
-      background: rgba(0,255,136,0.1);
-      border-color: var(--neon-green);
-      color: var(--neon-green);
-    }
-
-    .toolbar-select {
-      padding: 6px 30px 6px 12px;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      color: var(--text-primary);
+    .ide-breadcrumb .bc-logo {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.8rem;
+      font-weight: 700; color: var(--accent);
       cursor: pointer;
-      appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%2388a' viewBox='0 0 16 16'%3E%3Cpath d='M8 12L2 6h12z'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 10px center;
     }
-
-    .toolbar-select:focus {
-      outline: none;
-      border-color: var(--neon-green);
+    .ide-breadcrumb .bc-sep { color: var(--text-dim); }
+    .ide-breadcrumb .bc-project { color: var(--text-primary); font-weight: 500; }
+    .ide-command-bar {
+      flex: 1; max-width: 500px; margin: 0 auto;
     }
+    .ide-command-input {
+      width: 100%; padding: 4px 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      font-family: 'Inter', sans-serif;
+      text-align: center;
+    }
+    .ide-command-input:focus {
+      outline: none; border-color: var(--accent);
+      color: var(--text-primary); text-align: left;
+    }
+    .ide-command-input::placeholder { color: var(--text-dim); }
+    .ide-titlebar-actions {
+      display: flex; align-items: center; gap: 6px;
+      flex-shrink: 0;
+    }
+    .ide-title-btn {
+      padding: 3px 10px; border-radius: var(--radius-sm);
+      border: none; cursor: pointer;
+      font-size: 0.78rem; font-family: 'Inter', sans-serif;
+      transition: var(--transition);
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .ide-run-btn {
+      background: var(--accent-green); color: var(--bg-tertiary);
+      font-weight: 600;
+    }
+    .ide-run-btn:hover { filter: brightness(1.1); }
+    .ide-save-btn {
+      background: transparent; color: var(--text-secondary);
+    }
+    .ide-save-btn:hover { background: var(--bg-surface); color: var(--text-primary); }
+    .save-status { font-size: 0.72rem; color: var(--text-dim); margin-left: 4px; }
+    .save-status.saving { color: var(--accent-yellow); }
+    .save-status.saved { color: var(--accent-green); }
 
-    .editor-body {
+    /* IDE Body */
+    .ide-body {
       flex: 1; display: flex; overflow: hidden;
     }
 
-    .editor-panel {
+    /* Activity Bar (icon strip) */
+    .activity-bar {
+      width: var(--activitybar-width);
+      background: var(--bg-tertiary);
+      border-right: 1px solid var(--border-color);
+      display: flex; flex-direction: column;
+      align-items: center;
+      padding-top: 4px;
+      flex-shrink: 0;
+    }
+    .activity-btn {
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      border: none; background: transparent;
+      color: var(--text-dim); cursor: pointer;
+      font-size: 1.1rem;
+      border-left: 2px solid transparent;
+      transition: var(--transition);
+      position: relative;
+    }
+    .activity-btn:hover { color: var(--text-primary); }
+    .activity-btn.active {
+      color: var(--text-primary);
+      border-left-color: var(--accent);
+    }
+    .activity-spacer { flex: 1; }
+    .activity-btn .badge-count {
+      position: absolute; top: 4px; right: 4px;
+      background: var(--accent); color: var(--bg-tertiary);
+      font-size: 0.55rem; font-weight: 700;
+      width: 14px; height: 14px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Sidebar */
+    .ide-sidebar {
+      width: var(--sidebar-width);
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      display: flex; flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 8px 12px;
+      font-size: 0.7rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border-color);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .sidebar-header-actions { display: flex; gap: 4px; }
+    .sidebar-icon-btn {
+      width: 22px; height: 22px; border: none; background: transparent;
+      color: var(--text-dim); cursor: pointer; border-radius: 3px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem;
+    }
+    .sidebar-icon-btn:hover { background: var(--bg-surface); color: var(--text-primary); }
+    .sidebar-content {
+      flex: 1; overflow-y: auto;
+    }
+
+    /* File Explorer */
+    .file-tree { padding: 4px 0; }
+    .tree-section {
+      user-select: none;
+    }
+    .tree-section-header {
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 8px 4px 12px;
+      font-size: 0.75rem; font-weight: 600;
+      color: var(--text-primary);
+      cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .tree-section-header:hover { background: var(--bg-surface); }
+    .tree-section-header .chevron {
+      font-size: 0.6rem; transition: transform 0.15s;
+      color: var(--text-dim); width: 14px; text-align: center;
+    }
+    .tree-section-header .chevron.collapsed { transform: rotate(-90deg); }
+    .tree-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 3px 8px 3px 28px;
+      font-size: 0.8rem; cursor: pointer;
+      color: var(--text-secondary);
+      transition: var(--transition);
+      position: relative;
+    }
+    .tree-item:hover { background: var(--bg-surface); color: var(--text-primary); }
+    .tree-item.active {
+      background: rgba(137,180,250,0.1);
+      color: var(--text-primary);
+    }
+    .tree-item .file-icon { width: 16px; text-align: center; font-size: 0.75rem; flex-shrink: 0; }
+    .tree-item .file-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tree-item .file-actions {
+      display: none; gap: 2px;
+    }
+    .tree-item:hover .file-actions { display: flex; }
+    .tree-item .file-action-btn {
+      width: 18px; height: 18px; border: none; background: transparent;
+      color: var(--text-dim); cursor: pointer; border-radius: 2px;
+      font-size: 0.7rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .tree-item .file-action-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    .tree-folder {
+      display: flex; align-items: center; gap: 6px;
+      padding: 3px 8px 3px 20px;
+      font-size: 0.8rem; cursor: pointer;
+      color: var(--text-secondary);
+      transition: var(--transition);
+    }
+    .tree-folder:hover { background: var(--bg-surface); color: var(--text-primary); }
+    .tree-folder .folder-icon { width: 16px; text-align: center; font-size: 0.75rem; flex-shrink: 0; }
+    .tree-folder .folder-chevron {
+      font-size: 0.55rem; color: var(--text-dim); width: 10px; text-align: center;
+      transition: transform 0.15s;
+    }
+    .tree-folder .folder-chevron.collapsed { transform: rotate(-90deg); }
+    .tree-folder-children { }
+    .tree-folder-children .tree-item { padding-left: 44px; }
+
+    /* New file input */
+    .new-file-input {
+      display: flex; align-items: center; gap: 4px;
+      padding: 2px 8px 2px 28px;
+    }
+    .new-file-input input {
+      flex: 1; padding: 2px 6px;
+      background: var(--bg-primary);
+      border: 1px solid var(--accent);
+      border-radius: 2px;
+      color: var(--text-primary);
+      font-size: 0.8rem;
+      font-family: 'JetBrains Mono', monospace;
+      outline: none;
+    }
+
+    /* Editor Tabs */
+    .editor-main {
       flex: 1; display: flex; flex-direction: column;
       min-width: 0;
     }
-
-    .panel-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 16px;
+    .tab-bar {
+      display: flex; align-items: center;
       background: var(--bg-tertiary);
       border-bottom: 1px solid var(--border-color);
-      font-size: 0.8rem;
-      color: var(--text-secondary);
-      font-family: 'JetBrains Mono', monospace;
+      height: var(--tab-height);
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    .tab-bar::-webkit-scrollbar { height: 0; }
+    .editor-tab {
+      display: flex; align-items: center; gap: 6px;
+      padding: 0 14px; height: 100%;
+      font-size: 0.78rem; color: var(--text-dim);
+      cursor: pointer; border-right: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
+      white-space: nowrap; flex-shrink: 0;
+      transition: var(--transition);
+      position: relative;
+    }
+    .editor-tab:hover { color: var(--text-primary); background: var(--bg-secondary); }
+    .editor-tab.active {
+      color: var(--text-primary);
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--bg-primary);
+      margin-bottom: -1px;
+    }
+    .editor-tab .tab-icon { font-size: 0.7rem; }
+    .editor-tab .tab-close {
+      width: 16px; height: 16px; border: none; background: transparent;
+      color: var(--text-dim); cursor: pointer; border-radius: 3px;
+      font-size: 0.65rem;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0;
+    }
+    .editor-tab:hover .tab-close, .editor-tab.active .tab-close { opacity: 1; }
+    .editor-tab .tab-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .editor-tab .tab-modified {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--text-dim);
     }
 
-    .panel-header .dot { 
-      display: inline-block; width: 8px; height: 8px;
-      border-radius: 50%; margin-right: 8px;
+    /* Editor Area */
+    .editor-area {
+      flex: 1; display: flex; flex-direction: column;
+      overflow: hidden;
     }
-    .dot-green { background: var(--neon-green); box-shadow: 0 0 6px var(--neon-green); }
-    .dot-blue { background: var(--neon-blue); box-shadow: 0 0 6px var(--neon-blue); }
-    .dot-orange { background: var(--neon-orange); box-shadow: 0 0 6px var(--neon-orange); }
-
+    .editor-info-bar {
+      padding: 3px 12px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .active-users { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+    .active-user-dot {
+      width: 20px; height: 20px; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.6rem; font-weight: 700;
+      color: var(--bg-tertiary);
+      position: relative; cursor: default;
+    }
+    .active-user-dot .tooltip {
+      display: none; position: absolute; bottom: 100%;
+      left: 50%; transform: translateX(-50%);
+      background: var(--bg-tertiary); border: 1px solid var(--border-color);
+      color: var(--text-primary); padding: 3px 8px;
+      border-radius: 3px; font-size: 0.65rem;
+      white-space: nowrap; z-index: 10; margin-bottom: 4px;
+    }
+    .active-user-dot:hover .tooltip { display: block; }
+    .active-user-dot.pulse { animation: userPulse 2s ease-in-out infinite; }
+    @keyframes userPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(137,180,250,0.4); }
+      50% { box-shadow: 0 0 0 4px rgba(137,180,250,0); }
+    }
     #editor-container { flex: 1; overflow: hidden; }
+
+    /* Panel Area (bottom: preview/output) */
+    .panel-area {
+      display: flex; overflow: hidden;
+    }
+    .resize-handle-h {
+      height: 4px; cursor: row-resize;
+      background: var(--border-color);
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .resize-handle-h:hover { background: var(--accent); }
+    .resize-handle-v {
+      width: 4px; cursor: col-resize;
+      background: var(--border-color);
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .resize-handle-v:hover { background: var(--accent); }
 
     .preview-panel {
       flex: 1; display: flex; flex-direction: column;
-      border-left: 1px solid var(--border-color);
       min-width: 0;
     }
-
     .preview-panel iframe {
-      flex: 1; width: 100%; border: none;
-      background: #fff;
+      flex: 1; width: 100%; border: none; background: #fff;
     }
-
     .output-panel {
       flex: 1; display: flex; flex-direction: column;
-      border-left: 1px solid var(--border-color);
       min-width: 0;
     }
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 12px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.72rem; color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .panel-header-tabs {
+      display: flex; gap: 0;
+    }
+    .panel-tab {
+      padding: 4px 12px; cursor: pointer;
+      border-bottom: 1px solid transparent;
+      color: var(--text-dim);
+      transition: var(--transition);
+    }
+    .panel-tab:hover { color: var(--text-primary); }
+    .panel-tab.active {
+      color: var(--text-primary);
+      border-bottom-color: var(--accent);
+    }
+    .panel-header-actions { display: flex; gap: 4px; }
+    .panel-icon-btn {
+      width: 20px; height: 20px; border: none; background: transparent;
+      color: var(--text-dim); cursor: pointer; border-radius: 3px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem;
+    }
+    .panel-icon-btn:hover { background: var(--bg-surface); color: var(--text-primary); }
 
     .output-content {
-      flex: 1; padding: 16px; overflow: auto;
+      flex: 1; padding: 10px 14px; overflow: auto;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.85rem; line-height: 1.6;
-      background: var(--bg-primary);
+      font-size: 0.8rem; line-height: 1.5;
+      background: var(--bg-tertiary);
       white-space: pre-wrap;
     }
+    .output-line { margin-bottom: 1px; }
+    .output-line.error { color: var(--accent-red); }
+    .output-line.success { color: var(--accent-green); }
+    .output-line.info { color: var(--accent-blue); }
 
-    .output-line { margin-bottom: 2px; }
-    .output-line.error { color: #ff6b6b; }
-    .output-line.success { color: var(--neon-green); }
-    .output-line.info { color: var(--neon-blue); }
-
-    .resize-handle {
-      width: 4px; cursor: col-resize;
-      background: var(--border-color);
-      transition: background 0.2s;
+    /* Status Bar */
+    .ide-statusbar {
+      height: var(--statusbar-height);
+      background: var(--accent);
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      font-size: 0.7rem;
+      color: var(--bg-tertiary);
+      font-weight: 500;
+      flex-shrink: 0;
     }
-    .resize-handle:hover { background: var(--neon-green); }
-
-    /* ── Save Status ─────────────────────────────────────────────────── */
-    .save-status {
-      font-size: 0.75rem; color: var(--text-dim);
+    .statusbar-left, .statusbar-right {
+      display: flex; align-items: center; gap: 14px;
+    }
+    .statusbar-item {
       display: flex; align-items: center; gap: 4px;
+      cursor: default;
     }
-
-    .save-status.saving { color: var(--neon-orange); }
-    .save-status.saved { color: var(--neon-green); }
-
-    /* ── Settings Panel ──────────────────────────────────────────────── */
-    .settings-page { padding: 40px 0; }
-
-    .settings-section {
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius);
-      padding: 24px; margin-bottom: 24px;
+    .statusbar-btn {
+      padding: 0 6px; border: none; background: transparent;
+      color: var(--bg-tertiary); cursor: pointer;
+      font-size: 0.7rem; font-family: 'Inter', sans-serif;
+      height: var(--statusbar-height);
+      display: flex; align-items: center; gap: 3px;
     }
+    .statusbar-btn:hover { background: rgba(0,0,0,0.15); }
 
-    .settings-section h2 {
-      font-family: 'Orbitron', monospace;
-      font-size: 1.1rem; margin-bottom: 16px;
-      color: var(--neon-blue);
+    /* History Panel (right sidebar) */
+    .history-panel {
+      width: 260px; flex-shrink: 0;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border-color);
+      display: flex; flex-direction: column;
+      overflow: hidden;
     }
-
-    .github-connected {
-      display: flex; align-items: center; gap: 12px;
-      padding: 16px;
-      background: rgba(0,255,136,0.05);
-      border: 1px solid rgba(0,255,136,0.2);
+    .history-list { flex: 1; overflow-y: auto; padding: 6px; }
+    .history-item {
+      padding: 8px 10px;
       border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      margin-bottom: 4px;
+      background: var(--bg-primary);
+      transition: var(--transition);
+    }
+    .history-item:hover { border-color: var(--border-active); }
+    .history-item .h-user {
+      font-weight: 600; font-size: 0.78rem;
+      color: var(--accent-green);
+    }
+    .history-item .h-action {
+      font-size: 0.7rem; color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    .history-item .h-time {
+      font-size: 0.65rem; color: var(--text-dim);
+      margin-top: 2px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .h-action-badge {
+      display: inline-block;
+      padding: 1px 5px; border-radius: 3px;
+      font-size: 0.6rem; font-weight: 700;
+      text-transform: uppercase;
+    }
+    .h-badge-edit { background: rgba(166,227,161,0.15); color: var(--accent-green); }
+    .h-badge-push { background: rgba(203,166,247,0.15); color: var(--accent-mauve); }
+
+    /* Collaborator Items */
+    .collab-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px; border-radius: var(--radius-sm);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      margin-bottom: 6px;
+    }
+    .collab-avatar {
+      width: 28px; height: 28px; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.75rem;
+      color: var(--bg-tertiary);
+    }
+    .collab-info { flex: 1; }
+    .collab-name { font-weight: 600; font-size: 0.82rem; }
+    .collab-role-label { font-size: 0.7rem; color: var(--text-secondary); }
+    .role-editor { background: var(--accent-green); }
+    .role-viewer { background: var(--accent-blue); }
+    .role-indicator {
+      padding: 2px 8px; border-radius: 3px;
+      font-size: 0.65rem; font-weight: 700;
+      text-transform: uppercase;
+    }
+    .role-indicator.owner { background: rgba(249,226,175,0.15); color: var(--accent-yellow); }
+    .role-indicator.editor { background: rgba(166,227,161,0.15); color: var(--accent-green); }
+    .role-indicator.viewer { background: rgba(137,180,250,0.15); color: var(--accent-blue); }
+    .user-suggestion {
+      padding: 6px 10px; cursor: pointer;
+      border-radius: var(--radius-sm);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      margin-bottom: 3px;
+      font-size: 0.8rem;
+      transition: var(--transition);
+    }
+    .user-suggestion:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Remote cursors */
+    .remote-cursor-line { border-left: 2px solid; margin-left: 3px; }
+    .remote-cursor-label {
+      position: absolute; top: -18px; left: 0;
+      padding: 1px 5px; border-radius: 2px;
+      font-size: 0.6rem; font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      white-space: nowrap; z-index: 10; pointer-events: none;
     }
 
-    .github-connected .gh-avatar {
-      width: 40px; height: 40px; border-radius: 50%;
-      background: #333; display: flex; align-items: center; justify-content: center;
-      font-size: 1.2rem;
-    }
-
-    /* ── Toast Notifications ──────────────────────────────────────────── */
+    /* Toasts */
     .toast-container {
-      position: fixed; bottom: 24px; right: 24px;
+      position: fixed; bottom: 30px; right: 20px;
       z-index: 10000; display: flex;
-      flex-direction: column; gap: 8px;
+      flex-direction: column; gap: 6px;
     }
-
     .toast {
-      padding: 12px 20px; border-radius: var(--radius-sm);
-      font-size: 0.85rem; font-weight: 500;
-      animation: slideInRight 0.3s ease;
-      max-width: 400px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      padding: 8px 16px; border-radius: var(--radius-sm);
+      font-size: 0.8rem; font-weight: 500;
+      animation: slideInRight 0.25s ease;
+      max-width: 360px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
     }
-
     .toast-success {
-      background: rgba(0,255,136,0.15);
-      border: 1px solid rgba(0,255,136,0.3);
-      color: var(--neon-green);
+      background: rgba(166,227,161,0.15);
+      border: 1px solid rgba(166,227,161,0.3);
+      color: var(--accent-green);
     }
-
     .toast-error {
-      background: rgba(255,45,45,0.15);
-      border: 1px solid rgba(255,45,45,0.3);
-      color: #ff6b6b;
+      background: rgba(243,139,168,0.15);
+      border: 1px solid rgba(243,139,168,0.3);
+      color: var(--accent-red);
     }
-
     .toast-info {
-      background: rgba(0,212,255,0.15);
-      border: 1px solid rgba(0,212,255,0.3);
-      color: var(--neon-blue);
+      background: rgba(137,180,250,0.15);
+      border: 1px solid rgba(137,180,250,0.3);
+      color: var(--accent-blue);
     }
-
     @keyframes slideInRight {
       from { transform: translateX(100%); opacity: 0; }
       to { transform: translateX(0); opacity: 1; }
     }
 
-    /* ── Loading Spinner ─────────────────────────────────────────────── */
     .spinner {
-      width: 18px; height: 18px;
+      width: 16px; height: 16px;
       border: 2px solid var(--border-color);
-      border-top-color: var(--neon-green);
+      border-top-color: var(--accent);
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
       display: inline-block;
     }
-
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Empty State ─────────────────────────────────────────────────── */
     .empty-state {
-      text-align: center; padding: 60px 20px;
-      color: var(--text-secondary);
+      text-align: center; padding: 40px 20px; color: var(--text-secondary);
     }
-
-    .empty-state .empty-icon {
-      font-size: 4rem; margin-bottom: 16px; opacity: 0.5;
-    }
-
+    .empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.5; }
     .empty-state h3 {
-      font-family: 'Orbitron', monospace;
-      margin-bottom: 8px; color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      margin-bottom: 6px; color: var(--text-primary); font-size: 0.95rem;
+    }
+    .toolbar-select {
+      padding: 3px 24px 3px 8px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; cursor: pointer; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' fill='%236c7086' viewBox='0 0 16 16'%3E%3Cpath d='M8 12L2 6h12z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 6px center;
+    }
+    .toolbar-select:focus { outline: none; border-color: var(--accent); }
+
+    /* Sidebar panels (collab list, settings mini) */
+    .sidebar-panel { padding: 8px; }
+    .sidebar-panel h3 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 8px; padding: 0 4px;
     }
 
-    /* ── Responsive ───────────────────────────────────────────────────── */
     @media (max-width: 768px) {
-      .editor-body { flex-direction: column; }
-      .preview-panel, .output-panel { border-left: none; border-top: 1px solid var(--border-color); }
-      .resize-handle { display: none; }
-      .dashboard-header { flex-direction: column; align-items: flex-start; }
+      .ide-sidebar { display: none; }
+      .activity-bar { display: none; }
+      .dashboard { padding: 16px; }
       .projects-grid { grid-template-columns: 1fr; }
       .stats-bar { grid-template-columns: 1fr 1fr; }
-    }
-
-    /* ── Keyboard Shortcut Hints ─────────────────────────────────────── */
-    .kbd {
-      padding: 2px 6px; border-radius: 4px;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border-color);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.7rem; color: var(--text-dim);
-    }
-
-    .toolbar-right {
-      margin-left: auto;
-      display: flex; align-items: center; gap: 8px;
-    }
-
-    /* ── Collaborator Items ──────────────────────────────────────────── */
-    .collab-item {
-      display: flex; align-items: center; gap: 12px;
-      padding: 10px 12px; border-radius: var(--radius-sm);
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      margin-bottom: 8px;
-    }
-
-    .collab-item .collab-avatar {
-      width: 32px; height: 32px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 0.8rem;
-      color: var(--bg-primary);
-    }
-
-    .collab-item .collab-info { flex: 1; }
-    .collab-item .collab-name { font-weight: 600; font-size: 0.9rem; }
-    .collab-item .collab-role-label { font-size: 0.75rem; color: var(--text-secondary); }
-
-    .role-editor { background: linear-gradient(135deg, var(--neon-green), #00cc6a); }
-    .role-viewer { background: linear-gradient(135deg, var(--neon-blue), #0099cc); }
-
-    .shared-section-title {
-      font-family: 'Orbitron', monospace;
-      font-size: 1rem; color: var(--neon-blue);
-      margin: 32px 0 16px; padding-bottom: 8px;
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    .shared-badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 4px 10px; border-radius: 20px;
-      background: rgba(0,212,255,0.1);
-      border: 1px solid rgba(0,212,255,0.3);
-      color: var(--neon-blue);
-      font-size: 0.75rem; font-weight: 600;
-    }
-
-    .role-indicator {
-      padding: 3px 10px; border-radius: 20px;
-      font-size: 0.7rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.5px;
-    }
-    .role-indicator.owner { background: rgba(255,215,0,0.15); color: var(--neon-yellow); border: 1px solid rgba(255,215,0,0.3); }
-    .role-indicator.editor { background: rgba(0,255,136,0.15); color: var(--neon-green); border: 1px solid rgba(0,255,136,0.3); }
-    .role-indicator.viewer { background: rgba(0,212,255,0.15); color: var(--neon-blue); border: 1px solid rgba(0,212,255,0.3); }
-
-    .user-suggestion {
-      padding: 8px 12px; cursor: pointer;
-      border-radius: var(--radius-sm);
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border-color);
-      margin-bottom: 4px;
-      font-size: 0.85rem;
-      transition: var(--transition);
-    }
-    .user-suggestion:hover {
-      border-color: var(--neon-green);
-      color: var(--neon-green);
-    }
-
-    /* ── Edit History Panel ──────────────────────────────────────────── */
-    .history-panel {
-      width: 280px; flex-shrink: 0;
-      background: var(--bg-card);
-      border-left: 1px solid var(--border-color);
-      display: flex; flex-direction: column;
-      overflow: hidden;
-    }
-
-    .history-panel .panel-header {
-      background: var(--bg-tertiary);
-      border-bottom: 1px solid var(--border-color);
-      padding: 10px 14px;
-      font-family: 'Orbitron', monospace;
-      font-size: 0.8rem;
-      color: var(--neon-purple);
-    }
-
-    .history-list {
-      flex: 1; overflow-y: auto; padding: 8px;
-    }
-
-    .history-item {
-      padding: 10px 12px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-color);
-      margin-bottom: 6px;
-      background: var(--bg-secondary);
-      transition: var(--transition);
-    }
-
-    .history-item:hover {
-      border-color: rgba(180,77,255,0.3);
-    }
-
-    .history-item .h-user {
-      font-weight: 600; font-size: 0.85rem;
-      color: var(--neon-green);
-    }
-
-    .history-item .h-action {
-      font-size: 0.75rem; color: var(--text-secondary);
-      margin-top: 2px;
-    }
-
-    .history-item .h-time {
-      font-size: 0.7rem; color: var(--text-dim);
-      margin-top: 4px;
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    .h-action-badge {
-      display: inline-block;
-      padding: 1px 6px; border-radius: 4px;
-      font-size: 0.65rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.5px;
-    }
-    .h-badge-edit { background: rgba(0,255,136,0.15); color: var(--neon-green); }
-    .h-badge-push { background: rgba(180,77,255,0.15); color: var(--neon-purple); }
-
-    /* ── Edit Info Bar ───────────────────────────────────────────────── */
-    .edit-info-bar {
-      padding: 6px 16px;
-      background: var(--bg-tertiary);
-      border-bottom: 1px solid var(--border-color);
-      font-size: 0.78rem;
-      color: var(--text-secondary);
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    /* ── Active Users Bar ────────────────────────────────────────────── */
-    .active-users {
-      display: flex; align-items: center; gap: 6px;
-    }
-
-    .active-user-dot {
-      width: 26px; height: 26px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 0.7rem; font-weight: 700;
-      color: var(--bg-primary);
-      position: relative;
-      cursor: default;
-    }
-
-    .active-user-dot .tooltip {
-      display: none; position: absolute; bottom: 100%;
-      left: 50%; transform: translateX(-50%);
-      background: var(--bg-card); border: 1px solid var(--border-color);
-      color: var(--text-primary); padding: 4px 8px;
-      border-radius: 4px; font-size: 0.7rem;
-      white-space: nowrap; z-index: 10;
-      margin-bottom: 4px;
-    }
-
-    .active-user-dot:hover .tooltip { display: block; }
-
-    .active-user-dot.pulse {
-      animation: userPulse 2s ease-in-out infinite;
-    }
-
-    @keyframes userPulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.4); }
-      50% { box-shadow: 0 0 0 6px rgba(0,255,136,0); }
-    }
-
-    /* Remote cursor line highlight */
-    .remote-cursor-line {
-      border-left: 2px solid;
-      margin-left: 3px;
-    }
-
-    .remote-cursor-label {
-      position: absolute;
-      top: -18px; left: 0;
-      padding: 1px 6px;
-      border-radius: 3px;
-      font-size: 0.65rem;
-      font-weight: 700;
-      font-family: 'Inter', sans-serif;
-      white-space: nowrap;
-      z-index: 10;
-      pointer-events: none;
     }
   </style>
 </head>
 <body>
 
-<div class="bg-grid"></div>
-<div class="bg-orbs"></div>
-
-<!-- ═══════════════════════ AUTH PAGE ═══════════════════════ -->
+<!-- ═══════════════════ AUTH PAGE ═══════════════════ -->
 <div id="page-auth" class="auth-page">
   <div class="auth-container">
     <div class="auth-header">
-      <h1>CODE_LAB</h1>
-      <p>⚡ Futuristic Code Editor</p>
+      <h1>⚡ CodeLab</h1>
+      <p>Cloud IDE — Code, Run, Collaborate</p>
     </div>
-
-    <!-- Login Form -->
     <div id="login-form" class="auth-card">
-      <h2>⟩ Sign In</h2>
+      <h2>Sign In</h2>
       <div id="login-error" class="auth-error hidden"></div>
       <div class="form-group">
         <label class="form-label">Username or Email</label>
-        <input type="text" id="login-username" class="form-input" placeholder="neo@matrix.io" autocomplete="username">
+        <input type="text" id="login-username" class="form-input" placeholder="username" autocomplete="username">
       </div>
       <div class="form-group">
         <label class="form-label">Password</label>
         <input type="password" id="login-password" class="form-input" placeholder="••••••••" autocomplete="current-password">
       </div>
-      <button class="btn btn-primary btn-lg" style="width:100%" onclick="doLogin()">
-        ⚡ Enter the Lab
-      </button>
+      <button class="btn btn-primary btn-lg" style="width:100%" onclick="doLogin()">Sign In</button>
       <div class="auth-toggle">
-        New to CODE_LAB? <a onclick="showRegister()">Create Account</a>
+        New here? <a onclick="showRegister()">Create Account</a>
       </div>
-      <div style="text-align:center; margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color);">
-        <div style="display:flex; gap:8px; margin-bottom:8px;">
-          <input type="text" id="guest-name" class="form-input" placeholder="Your name (e.g. john)" style="flex:1" maxlength="20">
-          <button class="btn btn-secondary" onclick="doGuestLogin()">
-            👤 Guest
-          </button>
+      <div style="text-align:center; margin-top:14px; padding-top:14px; border-top:1px solid var(--border-color);">
+        <div style="display:flex; gap:6px; margin-bottom:6px;">
+          <input type="text" id="guest-name" class="form-input" placeholder="Your name (optional)" style="flex:1" maxlength="20">
+          <button class="btn btn-secondary" onclick="doGuestLogin()">👤 Guest</button>
         </div>
-        <p style="font-size:0.75rem; color:var(--text-dim);">
-          Pick a name so teammates can find you — or leave blank for random
-        </p>
+        <p style="font-size:0.7rem; color:var(--text-dim);">Enter as guest — pick a name or leave blank</p>
       </div>
     </div>
-
-    <!-- Register Form -->
     <div id="register-form" class="auth-card hidden">
-      <h2>⟩ Create Account</h2>
+      <h2>Create Account</h2>
       <div id="register-error" class="auth-error hidden"></div>
       <div class="form-group">
         <label class="form-label">Username</label>
-        <input type="text" id="reg-username" class="form-input" placeholder="cyberdev" autocomplete="username">
+        <input type="text" id="reg-username" class="form-input" placeholder="username" autocomplete="username">
       </div>
       <div class="form-group">
         <label class="form-label">Email</label>
-        <input type="email" id="reg-email" class="form-input" placeholder="you@codelab.dev" autocomplete="email">
+        <input type="email" id="reg-email" class="form-input" placeholder="you@example.com" autocomplete="email">
       </div>
       <div class="form-group">
         <label class="form-label">Password (min 6 chars)</label>
         <input type="password" id="reg-password" class="form-input" placeholder="••••••••" autocomplete="new-password">
       </div>
-      <button class="btn btn-primary btn-lg" style="width:100%" onclick="doRegister()">
-        🚀 Join the Lab
-      </button>
+      <button class="btn btn-primary btn-lg" style="width:100%" onclick="doRegister()">Create Account</button>
       <div class="auth-toggle">
-        Already have an account? <a onclick="showLogin()">Sign In</a>
+        Have an account? <a onclick="showLogin()">Sign In</a>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ═══════════════════════ MAIN APP ═══════════════════════ -->
+<!-- ═══════════════════ MAIN APP ═══════════════════ -->
 <div id="page-app" class="hidden">
 
-  <!-- Navbar -->
-  <nav class="navbar">
-    <div class="navbar-inner">
-      <a class="logo" onclick="showDashboard()">CODE<span>_LAB</span> ⚡</a>
-      <div class="nav-actions">
-        <button class="btn btn-secondary btn-sm" onclick="showDashboard()">📁 Projects</button>
-        <button class="btn btn-secondary btn-sm" onclick="showSettings()">⚙️ Settings</button>
-        <div class="nav-user">
-          <div class="avatar" id="nav-avatar">N</div>
-          <span id="nav-username">neo</span>
+  <!-- ─── App Shell (Dashboard/Settings) ─── -->
+  <div id="app-shell" class="app-shell">
+    <nav class="navbar">
+      <div class="navbar-inner">
+        <a class="logo" onclick="showDashboard()">⚡ CodeLab</a>
+        <div class="nav-actions">
+          <button class="nav-btn" onclick="showDashboard()">📁 Projects</button>
+          <button class="nav-btn" onclick="showSettings()">⚙ Settings</button>
+          <div class="nav-user">
+            <div class="avatar" id="nav-avatar">U</div>
+            <span id="nav-username">user</span>
+          </div>
+          <button class="nav-btn" onclick="doLogout()">↩ Logout</button>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="doLogout()">↩ Logout</button>
       </div>
-    </div>
-  </nav>
+    </nav>
 
-  <!-- Dashboard -->
-  <div id="view-dashboard" class="dashboard container">
-    <div class="dashboard-header">
-      <h1>⟩ Your Projects</h1>
-      <button class="btn btn-primary" onclick="showNewProjectModal()">
-        + New Project
-      </button>
-    </div>
-
-    <div class="stats-bar">
-      <div class="stat-card">
-        <div class="stat-value" id="stat-projects">0</div>
-        <div class="stat-label">Projects</div>
+    <div id="view-dashboard" class="dashboard">
+      <div class="dashboard-header">
+        <h1>Your Projects</h1>
+        <button class="btn btn-primary" onclick="showNewProjectModal()">+ New Project</button>
       </div>
-      <div class="stat-card">
-        <div class="stat-value" id="stat-hosted">0</div>
-        <div class="stat-label">Hosted on GitHub</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value" id="stat-languages">0</div>
-        <div class="stat-label">Languages Used</div>
-      </div>
-    </div>
-
-    <div class="projects-grid" id="projects-grid">
-      <!-- Projects rendered here -->
-    </div>
-  </div>
-
-  <!-- Settings -->
-  <div id="view-settings" class="settings-page container hidden">
-    <h1 style="font-family:'Orbitron',monospace; margin-bottom:24px;">⟩ Settings</h1>
-
-    <div class="settings-section">
-      <h2>👤 Account</h2>
-      <p style="color:var(--text-secondary); margin-bottom:8px;">
-        Username: <strong id="settings-username" style="color:var(--neon-green)"></strong>
-      </p>
-      <p style="color:var(--text-secondary);">
-        Email: <strong id="settings-email" style="color:var(--neon-blue)"></strong>
-      </p>
-    </div>
-
-    <div class="settings-section">
-      <h2>🐙 GitHub Integration</h2>
-      <p style="color:var(--text-secondary); margin-bottom:16px;">
-        Connect your GitHub account to push projects and host them via GitHub Pages.
-      </p>
-
-      <div id="github-not-connected">
-        <div class="form-group">
-          <label class="form-label">GitHub Personal Access Token</label>
-          <input type="password" id="github-token-input" class="form-input"
-                 placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
-          <p style="font-size:0.75rem; color:var(--text-dim); margin-top:6px;">
-            Generate a token at github.com/settings/tokens with "repo" scope.
-          </p>
+      <div class="stats-bar">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-projects">0</div>
+          <div class="stat-label">Projects</div>
         </div>
-        <button class="btn btn-github" onclick="connectGitHub()">
-          🐙 Connect GitHub
-        </button>
-      </div>
-
-      <div id="github-connected" class="github-connected hidden">
-        <div class="gh-avatar">🐙</div>
-        <div style="flex:1">
-          <div style="font-weight:600;" id="gh-connected-user">Connected</div>
-          <div style="font-size:0.8rem; color:var(--text-secondary);">GitHub account linked</div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-hosted">0</div>
+          <div class="stat-label">On GitHub</div>
         </div>
-        <button class="btn btn-danger btn-sm" onclick="disconnectGitHub()">Disconnect</button>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-languages">0</div>
+          <div class="stat-label">Languages</div>
+        </div>
+      </div>
+      <div class="projects-grid" id="projects-grid"></div>
+    </div>
+
+    <div id="view-settings" class="settings-page hidden">
+      <h1 style="font-family:'JetBrains Mono',monospace; margin-bottom:20px; font-size:1.3rem;">Settings</h1>
+      <div class="settings-section">
+        <h2>👤 Account</h2>
+        <p style="color:var(--text-secondary); margin-bottom:6px;">
+          Username: <strong id="settings-username" style="color:var(--accent-green)"></strong>
+        </p>
+        <p style="color:var(--text-secondary);">
+          Email: <strong id="settings-email" style="color:var(--accent-blue)"></strong>
+        </p>
+      </div>
+      <div class="settings-section">
+        <h2>🐙 GitHub Integration</h2>
+        <p style="color:var(--text-secondary); margin-bottom:14px;">
+          Connect GitHub to push projects and host via Pages.
+        </p>
+        <div id="github-not-connected">
+          <div class="form-group">
+            <label class="form-label">Personal Access Token</label>
+            <input type="password" id="github-token-input" class="form-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+            <p style="font-size:0.7rem; color:var(--text-dim); margin-top:4px;">
+              Generate at github.com/settings/tokens with "repo" scope.
+            </p>
+          </div>
+          <button class="btn btn-github" onclick="connectGitHub()">🐙 Connect GitHub</button>
+        </div>
+        <div id="github-connected" class="github-connected hidden">
+          <div class="gh-avatar">🐙</div>
+          <div style="flex:1">
+            <div style="font-weight:600;" id="gh-connected-user">Connected</div>
+            <div style="font-size:0.75rem; color:var(--text-secondary);">GitHub linked</div>
+          </div>
+          <button class="btn btn-danger btn-sm" onclick="disconnectGitHub()">Disconnect</button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Editor -->
-  <div id="view-editor" class="editor-page hidden">
-    <div class="editor-toolbar">
-      <span class="project-name" id="editor-project-name">Untitled</span>
-      <div class="separator"></div>
+  <!-- ─── IDE Editor Layout ─── -->
+  <div id="view-editor" class="ide-layout hidden">
 
-      <div class="toolbar-group">
-        <select class="toolbar-select" id="language-select" onchange="changeLanguage(this.value)">
+    <!-- Title Bar -->
+    <div class="ide-titlebar">
+      <div class="ide-breadcrumb">
+        <span class="bc-logo" onclick="showDashboard()">⚡ CodeLab</span>
+        <span class="bc-sep">›</span>
+        <span class="bc-project" id="editor-project-name">Untitled</span>
+        <span id="role-badge" class="role-indicator" style="display:none; margin-left:6px;"></span>
+      </div>
+      <div class="ide-command-bar">
+        <input class="ide-command-input" id="command-input" placeholder="Search files, commands..." onfocus="this.placeholder='Type to search...'" onblur="this.placeholder='Search files, commands...'" oninput="filterCommandPalette(this.value)">
+      </div>
+      <div class="ide-titlebar-actions">
+        <span class="save-status" id="save-status">Ready</span>
+        <button class="ide-title-btn ide-save-btn" onclick="saveProject()" title="Ctrl+S">💾 Save</button>
+        <button class="ide-title-btn ide-save-btn" onclick="formatCode()" title="Format">✨</button>
+        <button class="ide-title-btn ide-save-btn" onclick="pushToGitHub()" title="Push to GitHub">🐙</button>
+        <button class="ide-title-btn ide-run-btn" onclick="runCode()" title="Ctrl+Enter">▶ RUN</button>
+      </div>
+    </div>
+
+    <!-- IDE Body -->
+    <div class="ide-body">
+
+      <!-- Activity Bar -->
+      <div class="activity-bar">
+        <button class="activity-btn active" id="act-explorer" onclick="toggleSidebarPanel('explorer')" title="Explorer">📁</button>
+        <button class="activity-btn" id="act-collab" onclick="toggleSidebarPanel('collab')" title="Collaborators">👥</button>
+        <button class="activity-btn" id="act-history" onclick="toggleSidebarPanel('history')" title="History">📜</button>
+        <div class="activity-spacer"></div>
+        <button class="activity-btn" onclick="showDashboard()" title="Back to Projects">⬅</button>
+        <button class="activity-btn" onclick="showSettings()" title="Settings">⚙</button>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="ide-sidebar" id="ide-sidebar">
+
+        <!-- Explorer Panel -->
+        <div id="sidebar-explorer">
+          <div class="sidebar-header">
+            <span>EXPLORER</span>
+            <div class="sidebar-header-actions">
+              <button class="sidebar-icon-btn" onclick="startNewFile()" title="New File">+</button>
+            </div>
+          </div>
+          <div class="sidebar-content">
+            <div class="file-tree" id="file-tree"></div>
+          </div>
+        </div>
+
+        <!-- Collaborators Panel -->
+        <div id="sidebar-collab" class="hidden">
+          <div class="sidebar-header">
+            <span>COLLABORATORS</span>
+            <div class="sidebar-header-actions">
+              <button class="sidebar-icon-btn" onclick="showCollaboratorsModal()" title="Manage">⚙</button>
+            </div>
+          </div>
+          <div class="sidebar-content sidebar-panel">
+            <div id="sidebar-collab-list"></div>
+            <div id="sidebar-active-users" style="margin-top:12px;"></div>
+          </div>
+        </div>
+
+        <!-- History Panel -->
+        <div id="sidebar-history" class="hidden">
+          <div class="sidebar-header"><span>EDIT HISTORY</span></div>
+          <div class="sidebar-content">
+            <div class="history-list" id="history-list">
+              <p style="color:var(--text-dim); font-size:0.75rem; padding:10px;">No edits yet</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Editor Main -->
+      <div class="editor-main">
+        <!-- Tab Bar -->
+        <div class="tab-bar" id="tab-bar"></div>
+
+        <!-- Editor + Panels -->
+        <div style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+          <!-- Editor info bar (collab info) -->
+          <div class="editor-info-bar" id="edit-info-bar" style="display:none;">
+            <span id="last-editor-info"></span>
+            <div id="active-users-bar" class="active-users"></div>
+          </div>
+
+          <!-- Editor + Right Panels -->
+          <div style="flex:1; display:flex; overflow:hidden;" id="editor-panels-row">
+            <!-- Editor container -->
+            <div style="flex:1; display:flex; flex-direction:column; min-width:0;" id="editor-col">
+              <div id="editor-container" style="flex:1;"></div>
+            </div>
+
+            <!-- Resize handle (vertical) -->
+            <div class="resize-handle-v" id="resize-handle" style="display:none;"></div>
+
+            <!-- Preview panel -->
+            <div id="preview-panel" class="preview-panel" style="display:none;">
+              <div class="panel-header">
+                <div class="panel-header-tabs">
+                  <div class="panel-tab active">Preview</div>
+                </div>
+                <div class="panel-header-actions">
+                  <button class="panel-icon-btn" onclick="refreshPreview()" title="Refresh">↻</button>
+                </div>
+              </div>
+              <iframe id="preview-iframe" sandbox="allow-scripts allow-modals"></iframe>
+            </div>
+          </div>
+
+          <!-- Bottom output panel -->
+          <div id="output-resize-handle" class="resize-handle-h" style="display:none;"></div>
+          <div id="output-panel" class="output-panel" style="display:none; height:200px;">
+            <div class="panel-header">
+              <div class="panel-header-tabs">
+                <div class="panel-tab active">Output</div>
+              </div>
+              <div class="panel-header-actions">
+                <button class="panel-icon-btn" onclick="clearOutput()" title="Clear">✕</button>
+                <button class="panel-icon-btn" onclick="toggleOutputPanel()" title="Close">−</button>
+              </div>
+            </div>
+            <div class="output-content" id="output-content">
+              <span style="color:var(--text-dim)">// Run code to see output…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- History right panel (toggled from activity bar, appears in sidebar instead) -->
+    </div>
+
+    <!-- Status Bar -->
+    <div class="ide-statusbar">
+      <div class="statusbar-left">
+        <span class="statusbar-item" id="cursor-pos">Ln 1, Col 1</span>
+        <span class="statusbar-item" id="statusbar-lang">HTML</span>
+        <select class="toolbar-select" id="language-select" onchange="changeLanguage(this.value)" style="background:transparent; border:none; color:var(--bg-tertiary); font-weight:600; font-size:0.7rem;">
           <option value="html">HTML</option>
           <option value="css">CSS</option>
           <option value="javascript">JavaScript</option>
@@ -1096,80 +1233,22 @@
           <option value="sql">SQL</option>
         </select>
       </div>
-
-      <div class="toolbar-group">
-        <button class="toolbar-btn" onclick="runCode()" title="Run code">▶ Run</button>
-        <button class="toolbar-btn" onclick="saveProject()" title="Ctrl+S">💾 Save</button>
-        <button class="toolbar-btn" onclick="formatCode()" title="Format">✨ Format</button>
-      </div>
-
-      <div class="toolbar-right">
-        <span class="save-status" id="save-status">Ready</span>
-        <span id="role-badge" class="lang-badge" style="display:none"></span>
-        <div class="separator"></div>
-        <button class="toolbar-btn" id="btn-collab" onclick="showCollaboratorsModal()" title="Manage Collaborators">👥 Team</button>
-        <button class="toolbar-btn" onclick="pushToGitHub()" title="Push to GitHub">
-          🐙 Push to GitHub
-        </button>
-        <button class="toolbar-btn" onclick="showDashboard()">← Back</button>
-      </div>
-    </div>
-
-    <div class="editor-body">
-      <!-- Edit info bar -->
-      <div id="edit-info-bar" style="display:none; padding:6px 16px; background:var(--bg-tertiary); border-bottom:1px solid var(--border-color); font-size:0.78rem; color:var(--text-secondary); display:flex; align-items:center; gap:16px;">
-        <span id="last-editor-info"></span>
-        <div id="active-users-bar" class="active-users" style="margin-left:auto; margin-right:8px;"></div>
-        <span>
-          <button class="toolbar-btn btn-sm" onclick="toggleHistory()" id="btn-history">📜 History</button>
-        </span>
-      </div>
-      <div class="editor-panel">
-        <div class="panel-header">
-          <span><span class="dot dot-green"></span>EDITOR</span>
-          <span id="cursor-pos">Ln 1, Col 1</span>
-        </div>
-        <div id="editor-container"></div>
-      </div>
-
-      <div class="resize-handle" id="resize-handle"></div>
-
-      <div id="preview-panel" class="preview-panel">
-        <div class="panel-header">
-          <span><span class="dot dot-blue"></span>PREVIEW</span>
-          <button class="toolbar-btn btn-sm" onclick="refreshPreview()">↻ Refresh</button>
-        </div>
-        <iframe id="preview-iframe" sandbox="allow-scripts allow-modals"></iframe>
-      </div>
-
-      <div id="output-panel" class="output-panel hidden">
-        <div class="panel-header">
-          <span><span class="dot dot-orange"></span>OUTPUT</span>
-          <button class="toolbar-btn btn-sm" onclick="clearOutput()">Clear</button>
-        </div>
-        <div class="output-content" id="output-content">
-          <span style="color:var(--text-dim)">// Run your code to see output here...</span>
-        </div>
-      </div>
-
-      <!-- History Panel -->
-      <div id="history-panel" class="history-panel hidden">
-        <div class="panel-header">📜 Edit History</div>
-        <div class="history-list" id="history-list">
-          <p style="color:var(--text-dim); font-size:0.8rem; padding:12px;">No edits yet</p>
-        </div>
+      <div class="statusbar-right">
+        <span class="statusbar-item" id="statusbar-file-count">0 files</span>
+        <button class="statusbar-btn" onclick="showCollaboratorsModal()">👥 Team</button>
+        <button class="statusbar-btn" onclick="toggleOutputPanel()">⬒ Terminal</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ═══════════════════════ NEW PROJECT MODAL ═══════════════════════ -->
+<!-- ═══════════════════ NEW PROJECT MODAL ═══════════════════ -->
 <div id="modal-new-project" class="modal-overlay hidden">
   <div class="modal">
-    <h2>+ New Project</h2>
+    <h2>New Project</h2>
     <div class="form-group">
       <label class="form-label">Project Name</label>
-      <input type="text" id="new-project-name" class="form-input" placeholder="my-awesome-project">
+      <input type="text" id="new-project-name" class="form-input" placeholder="my-project">
     </div>
     <div class="form-group">
       <label class="form-label">Description (optional)</label>
@@ -1187,47 +1266,42 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="hideModal('modal-new-project')">Cancel</button>
-      <button class="btn btn-primary" onclick="createProject()">⚡ Create Project</button>
+      <button class="btn btn-primary" onclick="createProject()">Create Project</button>
     </div>
   </div>
 </div>
 
-<!-- ═══════════════════════ COLLABORATORS MODAL ═══════════════════════ -->
+<!-- ═══════════════════ COLLABORATORS MODAL ═══════════════════ -->
 <div id="modal-collaborators" class="modal-overlay hidden">
-  <div class="modal" style="max-width:560px">
+  <div class="modal" style="max-width:520px">
     <h2>👥 Collaborators</h2>
-    <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:16px;">
-      Invite users to your project as <strong style="color:var(--neon-blue)">viewers</strong> (read-only) or <strong style="color:var(--neon-green)">editors</strong> (can edit & push).
+    <p style="color:var(--text-secondary); font-size:0.8rem; margin-bottom:14px;">
+      Invite as <strong style="color:var(--accent-blue)">viewers</strong> (read-only) or <strong style="color:var(--accent-green)">editors</strong> (can edit & push).
     </p>
-
-    <!-- Invite Form -->
     <div id="collab-invite-section">
-      <div style="display:flex; gap:8px; margin-bottom:16px;">
-        <input type="text" id="collab-username" class="form-input" placeholder="Username to invite" style="flex:1" oninput="searchUsers(this.value)">
-        <select id="collab-role" class="form-input" style="width:120px">
+      <div style="display:flex; gap:6px; margin-bottom:12px;">
+        <input type="text" id="collab-username" class="form-input" placeholder="Username" style="flex:1" oninput="searchUsers(this.value)">
+        <select id="collab-role" class="form-input" style="width:100px">
           <option value="editor">Editor</option>
           <option value="viewer">Viewer</option>
         </select>
         <button class="btn btn-primary btn-sm" onclick="inviteCollaborator()">Invite</button>
       </div>
-      <div id="user-search-results" style="margin-bottom:12px"></div>
+      <div id="user-search-results" style="margin-bottom:10px"></div>
     </div>
-
-    <!-- Current Collaborators List -->
-    <div id="collab-list" style="max-height:300px; overflow-y:auto;">
-      <p style="color:var(--text-dim); font-size:0.85rem;">No collaborators yet</p>
+    <div id="collab-list" style="max-height:260px; overflow-y:auto;">
+      <p style="color:var(--text-dim); font-size:0.8rem;">No collaborators yet</p>
     </div>
-
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="hideModal('modal-collaborators')">Close</button>
     </div>
   </div>
 </div>
 
-<!-- ═══════════════════════ TOAST CONTAINER ═══════════════════════ -->
+<!-- ═══════════════════ TOAST CONTAINER ═══════════════════ -->
 <div class="toast-container" id="toast-container"></div>
 
-<!-- ═══════════════════════ MONACO LOADER ═══════════════════════ -->
+<!-- ═══════════════════ MONACO LOADER ═══════════════════ -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 
 <script>
@@ -1245,6 +1319,61 @@ let editor = null;
 let editorReady = false;
 let autoSaveTimer = null;
 
+// Multi-file state
+let projectFiles = [];    // Array of { id, filename, content, language }
+let openTabs = [];         // Array of file objects currently open as tabs
+let activeFileId = null;   // Currently active file's id
+let mainFileId = null;     // The "main" file (project.code) — virtual id 'main'
+
+// SSE / Collab state
+let sseConnection = null;
+let activeUsers = [];
+let remoteCursors = {};
+let cursorDecorations = [];
+let isRemoteUpdate = false;
+let cursorThrottle = null;
+let liveEditThrottle = null;
+
+// Sidebar state
+let activeSidebarPanel = 'explorer';
+
+const USER_COLORS = [
+  '#f38ba8','#89b4fa','#f9e2af','#cba6f7',
+  '#fab387','#a6e3a1','#f38ba8','#74c7ec',
+  '#f5c2e7','#b4befe'
+];
+
+const FILE_ICONS = {
+  html: '🌐', htm: '🌐',
+  css: '🎨', scss: '🎨', less: '🎨',
+  js: '📜', jsx: '📜', ts: '📜', tsx: '📜',
+  json: '📋', xml: '📋',
+  py: '🐍', python: '🐍',
+  sql: '🗃', md: '📝', txt: '📄',
+  svg: '🖼', png: '🖼', jpg: '🖼', gif: '🖼',
+  default: '📄'
+};
+
+const LANG_MAP = {
+  html: 'html', htm: 'html',
+  css: 'css', scss: 'scss',
+  js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript',
+  json: 'json', xml: 'xml',
+  py: 'python',
+  sql: 'sql', md: 'markdown', txt: 'plaintext',
+  default: 'plaintext'
+};
+
+function getFileIcon(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  return FILE_ICONS[ext] || FILE_ICONS.default;
+}
+
+function getFileLang(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  return LANG_MAP[ext] || LANG_MAP.default;
+}
+
 // ══════════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════════
@@ -1259,7 +1388,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Not logged in
   }
 
-  // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.key === 's') {
       e.preventDefault();
@@ -1316,13 +1444,11 @@ async function doLogin() {
   const password = document.getElementById('login-password').value;
   const errEl = document.getElementById('login-error');
   errEl.classList.add('hidden');
-
   if (!username || !password) {
     errEl.textContent = 'Please fill in all fields';
     errEl.classList.remove('hidden');
     return;
   }
-
   try {
     const data = await api('/api/login', { method: 'POST', body: { username, password } });
     currentUser = data.user;
@@ -1340,18 +1466,16 @@ async function doRegister() {
   const password = document.getElementById('reg-password').value;
   const errEl = document.getElementById('register-error');
   errEl.classList.add('hidden');
-
   if (!username || !email || !password) {
     errEl.textContent = 'Please fill in all fields';
     errEl.classList.remove('hidden');
     return;
   }
-
   try {
     const data = await api('/api/register', { method: 'POST', body: { username, email, password } });
     currentUser = data.user;
     enterApp();
-    toast('Account created! Welcome to CODE_LAB!', 'success');
+    toast('Account created! Welcome to CodeLab!', 'success');
   } catch (err) {
     errEl.textContent = err.message;
     errEl.classList.remove('hidden');
@@ -1373,7 +1497,7 @@ async function doGuestLogin() {
     const data = await api('/api/guest', { method: 'POST', body: { displayName: displayName || null } });
     currentUser = data.user;
     enterApp();
-    toast(`Welcome, ${data.user.username}! Create projects and explore CODE_LAB.`, 'info');
+    toast(`Welcome, ${data.user.username}!`, 'info');
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -1391,29 +1515,30 @@ function enterApp() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// VIEWS
+// VIEW NAVIGATION
 // ══════════════════════════════════════════════════════════════════
 function hideAllViews() {
   document.getElementById('view-dashboard').classList.add('hidden');
   document.getElementById('view-settings').classList.add('hidden');
   document.getElementById('view-editor').classList.add('hidden');
-  document.querySelector('.navbar').classList.remove('hidden');
+  document.getElementById('app-shell').classList.remove('hidden');
 }
 
 async function showDashboard() {
   hideAllViews();
   disconnectSSE();
   document.getElementById('view-dashboard').classList.remove('hidden');
+  document.getElementById('view-settings').classList.add('hidden');
   currentProject = null;
   await loadProjects();
 }
 
 function showSettings() {
   hideAllViews();
+  document.getElementById('view-dashboard').classList.add('hidden');
   document.getElementById('view-settings').classList.remove('hidden');
   document.getElementById('settings-username').textContent = currentUser.username;
-  document.getElementById('settings-email').textContent = currentUser.email;
-
+  document.getElementById('settings-email').textContent = currentUser.email || '';
   if (currentUser.github_username) {
     document.getElementById('github-not-connected').classList.add('hidden');
     document.getElementById('github-connected').classList.remove('hidden');
@@ -1425,9 +1550,9 @@ function showSettings() {
 }
 
 async function showEditor(projectId) {
-  hideAllViews();
+  // Hide app shell, show IDE layout
+  document.getElementById('app-shell').classList.add('hidden');
   document.getElementById('view-editor').classList.remove('hidden');
-  document.querySelector('.navbar').classList.add('hidden');
 
   try {
     const data = await api(`/api/projects/${projectId}`);
@@ -1435,51 +1560,68 @@ async function showEditor(projectId) {
     currentRole = data.role || 'owner';
     currentCollaborators = data.collaborators || [];
     currentEditHistory = data.editHistory || [];
+    projectFiles = (data.files || []).map(f => ({
+      id: f.id || f._id,
+      filename: f.filename,
+      content: f.content || '',
+      language: f.language || 'html'
+    }));
 
+    // Set up title bar
     document.getElementById('editor-project-name').textContent = currentProject.name +
       (currentRole !== 'owner' ? ` (by ${data.owner})` : '');
-    document.getElementById('language-select').value = currentProject.language;
 
-    // Show role badge
     const roleBadge = document.getElementById('role-badge');
     roleBadge.style.display = 'inline-block';
     roleBadge.className = `role-indicator ${currentRole}`;
     roleBadge.textContent = currentRole;
 
-    // Show last editor info
+    // Language select
+    document.getElementById('language-select').value = currentProject.language;
+    document.getElementById('language-select').disabled = currentRole === 'viewer';
+    document.getElementById('statusbar-lang').textContent = currentProject.language.toUpperCase();
+
+    // Last editor info
     const infoBar = document.getElementById('edit-info-bar');
     const lastEditorEl = document.getElementById('last-editor-info');
     if (data.lastEditor) {
-      lastEditorEl.innerHTML = `✏️ Last edited by <strong style="color:var(--neon-green)">${escHtml(data.lastEditor.username)}</strong> · ${formatTimeAgo(data.lastEditor.at)}`;
+      lastEditorEl.innerHTML = `Last edited by <strong style="color:var(--accent-green)">${escHtml(data.lastEditor.username)}</strong> · ${formatTimeAgo(data.lastEditor.at)}`;
       infoBar.style.display = 'flex';
     } else {
-      lastEditorEl.innerHTML = '✨ No edits yet';
+      lastEditorEl.innerHTML = 'No edits yet';
       infoBar.style.display = 'flex';
     }
 
-    // Reset history panel
-    document.getElementById('history-panel').classList.add('hidden');
-    renderEditHistory();
+    // Build file tree and tabs
+    buildFileTree();
+    setupInitialTabs();
 
-    // Show/hide controls based on role
-    const isReadOnly = currentRole === 'viewer';
-    document.getElementById('language-select').disabled = isReadOnly;
-
+    // Show/hide panels
     updatePanelVisibility(currentProject.language);
 
+    // Init Monaco if needed
     if (!editorReady) {
       await initMonaco();
     }
 
-    setEditorLanguage(currentProject.language);
-    editor.setValue(currentProject.code || '');
+    // Load main file into editor
+    loadFileIntoEditor(activeFileId);
+
     editor.updateOptions({ readOnly: currentRole === 'viewer' });
 
     if (['html', 'css', 'javascript'].includes(currentProject.language)) {
       setTimeout(refreshPreview, 300);
     }
 
-    // Connect to real-time collaboration
+    // Render sidebar panels
+    renderEditHistory();
+    renderSidebarCollab();
+
+    // Status bar
+    document.getElementById('statusbar-file-count').textContent =
+      (projectFiles.length + 1) + ' files';
+
+    // Connect SSE
     connectSSE(currentProject.id);
   } catch (err) {
     toast('Failed to load project: ' + err.message, 'error');
@@ -1537,8 +1679,8 @@ function renderProjectCard(p, role) {
         ${role !== 'owner' ? `<span class="shared-badge">👥 ${role}</span>` : ''}
         <span class="project-date">${formatDate(p.updated_at)}</span>
       </div>
-      ${p.last_editor_name ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:8px;">✏️ Last edit by <strong style="color:var(--neon-green)">${escHtml(p.last_editor_name)}</strong> · ${p.last_edited_at ? formatTimeAgo(p.last_edited_at) : ''}</div>` : ''}
-      <div style="margin-top:12px; display:flex; gap:8px;">
+      ${p.last_editor_name ? `<div style="font-size:0.7rem; color:var(--text-secondary); margin-top:6px;">✏️ ${escHtml(p.last_editor_name)} · ${p.last_edited_at ? formatTimeAgo(p.last_edited_at) : ''}</div>` : ''}
+      <div style="margin-top:10px; display:flex; gap:6px;">
         ${p.github_url ? `<a href="${escHtml(p.github_url)}" target="_blank" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">🐙 Repo</a>` : ''}
         ${role === 'owner' ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteProject(${p.id}, '${escHtml(p.name)}')">🗑</button>` : ''}
         ${role !== 'owner' ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); leaveProject(${p.id})">↩ Leave</button>` : ''}
@@ -1562,14 +1704,9 @@ async function createProject() {
   const name = document.getElementById('new-project-name').value.trim();
   const description = document.getElementById('new-project-desc').value.trim();
   const language = document.getElementById('new-project-lang').value;
-
   if (!name) { toast('Project name is required', 'error'); return; }
-
   try {
-    const data = await api('/api/projects', {
-      method: 'POST',
-      body: { name, description, language }
-    });
+    const data = await api('/api/projects', { method: 'POST', body: { name, description, language } });
     hideModal('modal-new-project');
     toast('Project created!', 'success');
     showEditor(data.project.id);
@@ -1590,6 +1727,331 @@ async function deleteProject(id, name) {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// FILE TREE & MULTI-FILE SUPPORT
+// ══════════════════════════════════════════════════════════════════
+function buildFileTree() {
+  const tree = document.getElementById('file-tree');
+
+  // Create the main file entry (project.code)
+  const mainExt = { html: 'html', css: 'css', javascript: 'js', python: 'py', sql: 'sql' };
+  const mainFilename = currentProject.name.replace(/[^a-z0-9_-]/gi, '') +
+    '.' + (mainExt[currentProject.language] || 'txt');
+
+  // Group files by folder
+  const folders = {};
+  const rootFiles = [];
+
+  // Add main file as root
+  rootFiles.push({ id: 'main', filename: mainFilename, isMain: true });
+
+  projectFiles.forEach(f => {
+    const parts = f.filename.split('/');
+    if (parts.length > 1) {
+      const folder = parts[0];
+      if (!folders[folder]) folders[folder] = [];
+      folders[folder].push({ ...f, displayName: parts.slice(1).join('/') });
+    } else {
+      rootFiles.push(f);
+    }
+  });
+
+  let html = '<div class="tree-section">';
+  html += `<div class="tree-section-header" onclick="this.querySelector('.chevron').classList.toggle('collapsed'); this.nextElementSibling.classList.toggle('hidden');">
+    <span class="chevron">▼</span> ${escHtml(currentProject.name)}
+  </div>`;
+  html += '<div class="tree-section-content">';
+
+  // Render folders
+  Object.keys(folders).sort().forEach(folder => {
+    html += `<div class="tree-folder" onclick="this.querySelector('.folder-chevron').classList.toggle('collapsed'); this.nextElementSibling.classList.toggle('hidden');">
+      <span class="folder-chevron">▼</span>
+      <span class="folder-icon">📂</span>
+      <span>${escHtml(folder)}</span>
+    </div>`;
+    html += '<div class="tree-folder-children">';
+    folders[folder].sort((a,b) => a.displayName.localeCompare(b.displayName)).forEach(f => {
+      html += renderTreeItem(f.id, f.displayName, f.filename);
+    });
+    html += '</div>';
+  });
+
+  // Render root files
+  rootFiles.sort((a,b) => {
+    if (a.isMain) return -1;
+    if (b.isMain) return 1;
+    return a.filename.localeCompare(b.filename);
+  }).forEach(f => {
+    html += renderTreeItem(f.id, f.filename, f.filename, f.isMain);
+  });
+
+  html += '</div></div>';
+  tree.innerHTML = html;
+
+  updateTreeActiveState();
+}
+
+function renderTreeItem(id, displayName, fullName, isMain) {
+  const icon = getFileIcon(displayName);
+  const isActive = id === activeFileId;
+  const canDelete = !isMain && currentRole !== 'viewer';
+  return `<div class="tree-item ${isActive ? 'active' : ''}" data-file-id="${id}" onclick="openFile('${id}')">
+    <span class="file-icon">${icon}</span>
+    <span class="file-name">${escHtml(displayName)}${isMain ? ' ●' : ''}</span>
+    ${canDelete ? `<div class="file-actions">
+      <button class="file-action-btn" onclick="event.stopPropagation(); deleteFile('${id}')" title="Delete">✕</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function updateTreeActiveState() {
+  document.querySelectorAll('#file-tree .tree-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.fileId === String(activeFileId));
+  });
+}
+
+function setupInitialTabs() {
+  openTabs = [];
+  // Always open the main file
+  openTabs.push({ id: 'main', filename: getMainFileName(), isMain: true });
+  activeFileId = 'main';
+
+  // Open first few extra files as tabs
+  projectFiles.slice(0, 3).forEach(f => {
+    openTabs.push({ id: f.id, filename: f.filename });
+  });
+
+  renderTabs();
+}
+
+function getMainFileName() {
+  const mainExt = { html: 'html', css: 'css', javascript: 'js', python: 'py', sql: 'sql' };
+  return currentProject.name.replace(/[^a-z0-9_-]/gi, '') +
+    '.' + (mainExt[currentProject.language] || 'txt');
+}
+
+function renderTabs() {
+  const bar = document.getElementById('tab-bar');
+  bar.innerHTML = openTabs.map(tab => {
+    const icon = getFileIcon(tab.filename);
+    const isActive = tab.id === activeFileId;
+    const shortName = tab.filename.split('/').pop();
+    return `<div class="editor-tab ${isActive ? 'active' : ''}" data-tab-id="${tab.id}" onclick="switchTab('${tab.id}')">
+      <span class="tab-icon">${icon}</span>
+      <span>${escHtml(shortName)}${tab.isMain ? ' ●' : ''}</span>
+      <button class="tab-close" onclick="event.stopPropagation(); closeTab('${tab.id}')" title="Close">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function openFile(fileId) {
+  // Make sure it's in openTabs
+  if (!openTabs.find(t => String(t.id) === String(fileId))) {
+    let file;
+    if (fileId === 'main') {
+      file = { id: 'main', filename: getMainFileName(), isMain: true };
+    } else {
+      file = projectFiles.find(f => String(f.id) === String(fileId));
+      if (!file) return;
+      file = { id: file.id, filename: file.filename };
+    }
+    openTabs.push(file);
+  }
+  activeFileId = fileId;
+  renderTabs();
+  loadFileIntoEditor(fileId);
+  updateTreeActiveState();
+}
+
+function switchTab(tabId) {
+  activeFileId = tabId;
+  renderTabs();
+  loadFileIntoEditor(tabId);
+  updateTreeActiveState();
+}
+
+function closeTab(tabId) {
+  // Save current content before closing
+  saveCurrentFileContent();
+
+  openTabs = openTabs.filter(t => String(t.id) !== String(tabId));
+  if (openTabs.length === 0) {
+    // Reopen main
+    openTabs.push({ id: 'main', filename: getMainFileName(), isMain: true });
+  }
+  if (String(activeFileId) === String(tabId)) {
+    activeFileId = openTabs[openTabs.length - 1].id;
+    loadFileIntoEditor(activeFileId);
+  }
+  renderTabs();
+  updateTreeActiveState();
+}
+
+function loadFileIntoEditor(fileId) {
+  if (!editor) return;
+  let content = '';
+  let lang = currentProject.language;
+
+  if (fileId === 'main') {
+    content = currentProject.code || '';
+    lang = currentProject.language;
+  } else {
+    const file = projectFiles.find(f => String(f.id) === String(fileId));
+    if (file) {
+      content = file.content || '';
+      lang = getFileLang(file.filename);
+    }
+  }
+
+  isRemoteUpdate = true;
+  editor.setValue(content);
+  isRemoteUpdate = false;
+
+  const monacoLang = { html:'html', css:'css', javascript:'javascript', python:'python', sql:'sql',
+    json:'json', xml:'xml', typescript:'typescript', markdown:'markdown', plaintext:'plaintext', scss:'scss' };
+  monaco.editor.setModelLanguage(editor.getModel(), monacoLang[lang] || 'plaintext');
+}
+
+function saveCurrentFileContent() {
+  if (!editor || !currentProject) return;
+  const content = editor.getValue();
+  if (activeFileId === 'main') {
+    currentProject.code = content;
+  } else {
+    const file = projectFiles.find(f => String(f.id) === String(activeFileId));
+    if (file) file.content = content;
+  }
+}
+
+// New file creation
+function startNewFile() {
+  if (currentRole === 'viewer') { toast('View-only access', 'error'); return; }
+  const tree = document.getElementById('file-tree');
+  const existing = tree.querySelector('.new-file-input');
+  if (existing) existing.remove();
+
+  const div = document.createElement('div');
+  div.className = 'new-file-input';
+  div.innerHTML = `<input type="text" placeholder="filename.ext" onkeydown="if(event.key==='Enter')createNewFile(this.value); if(event.key==='Escape')this.parentElement.remove();" autofocus>`;
+  tree.querySelector('.tree-section-content').appendChild(div);
+  setTimeout(() => div.querySelector('input').focus(), 50);
+}
+
+async function createNewFile(filename) {
+  filename = filename.trim();
+  if (!filename) return;
+  // Remove the input
+  const inp = document.querySelector('.new-file-input');
+  if (inp) inp.remove();
+
+  try {
+    const data = await api(`/api/projects/${currentProject.id}/files`, {
+      method: 'POST',
+      body: { filename, content: '', language: getFileLang(filename) }
+    });
+    projectFiles = (data.files || []).map(f => ({
+      id: f.id || f._id,
+      filename: f.filename,
+      content: f.content || '',
+      language: f.language || 'html'
+    }));
+    buildFileTree();
+    // Open the new file
+    const newFile = projectFiles.find(f => f.filename === filename);
+    if (newFile) openFile(newFile.id);
+    document.getElementById('statusbar-file-count').textContent = (projectFiles.length + 1) + ' files';
+    toast('File created', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteFile(fileId) {
+  if (currentRole === 'viewer') return;
+  const file = projectFiles.find(f => String(f.id) === String(fileId));
+  if (!file) return;
+  if (!confirm(`Delete ${file.filename}?`)) return;
+  try {
+    await api(`/api/projects/${currentProject.id}/files/${fileId}`, { method: 'DELETE' });
+    projectFiles = projectFiles.filter(f => String(f.id) !== String(fileId));
+    openTabs = openTabs.filter(t => String(t.id) !== String(fileId));
+    if (String(activeFileId) === String(fileId)) {
+      activeFileId = 'main';
+      loadFileIntoEditor('main');
+    }
+    buildFileTree();
+    renderTabs();
+    document.getElementById('statusbar-file-count').textContent = (projectFiles.length + 1) + ' files';
+    toast('File deleted', 'info');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// Command palette filter
+function filterCommandPalette(query) {
+  // Simple: filter file tree by name
+  if (!query) {
+    document.querySelectorAll('#file-tree .tree-item').forEach(el => el.style.display = '');
+    document.querySelectorAll('#file-tree .tree-folder').forEach(el => el.style.display = '');
+    return;
+  }
+  const q = query.toLowerCase();
+  document.querySelectorAll('#file-tree .tree-item').forEach(el => {
+    const name = el.querySelector('.file-name').textContent.toLowerCase();
+    el.style.display = name.includes(q) ? '' : 'none';
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SIDEBAR PANELS
+// ══════════════════════════════════════════════════════════════════
+function toggleSidebarPanel(panel) {
+  if (activeSidebarPanel === panel) {
+    // Toggle sidebar visibility
+    const sidebar = document.getElementById('ide-sidebar');
+    if (sidebar.style.display === 'none') {
+      sidebar.style.display = '';
+    } else {
+      sidebar.style.display = 'none';
+    }
+    return;
+  }
+
+  activeSidebarPanel = panel;
+  document.getElementById('ide-sidebar').style.display = '';
+
+  // Toggle activity buttons
+  document.querySelectorAll('.activity-btn').forEach(b => b.classList.remove('active'));
+  const actBtn = document.getElementById('act-' + panel);
+  if (actBtn) actBtn.classList.add('active');
+
+  // Toggle panels
+  document.getElementById('sidebar-explorer').classList.toggle('hidden', panel !== 'explorer');
+  document.getElementById('sidebar-collab').classList.toggle('hidden', panel !== 'collab');
+  document.getElementById('sidebar-history').classList.toggle('hidden', panel !== 'history');
+}
+
+function renderSidebarCollab() {
+  const list = document.getElementById('sidebar-collab-list');
+  if (!list) return;
+  if (currentCollaborators.length === 0) {
+    list.innerHTML = '<p style="color:var(--text-dim); font-size:0.75rem; padding:4px;">No collaborators</p>';
+  } else {
+    list.innerHTML = '<h3>Members</h3>' + currentCollaborators.map(c => `
+      <div class="collab-item" style="padding:6px 8px; margin-bottom:4px;">
+        <div class="collab-avatar ${c.role === 'editor' ? 'role-editor' : 'role-viewer'}" style="width:22px; height:22px; font-size:0.65rem;">
+          ${c.username[0].toUpperCase()}
+        </div>
+        <div class="collab-info">
+          <div class="collab-name" style="font-size:0.78rem;">${escHtml(c.username)}</div>
+          <div class="collab-role-label">${c.role}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
 // MONACO EDITOR
 // ══════════════════════════════════════════════════════════════════
 function initMonaco() {
@@ -1597,44 +2059,42 @@ function initMonaco() {
     require.config({
       paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }
     });
-
     require(['vs/editor/editor.main'], function () {
-      // Define custom futuristic theme
       monaco.editor.defineTheme('codelab', {
         base: 'vs-dark',
         inherit: true,
         rules: [
-          { token: 'comment', foreground: '555577', fontStyle: 'italic' },
-          { token: 'keyword', foreground: 'b44dff', fontStyle: 'bold' },
-          { token: 'string', foreground: '00ff88' },
-          { token: 'number', foreground: 'ff8c00' },
-          { token: 'tag', foreground: '00d4ff' },
-          { token: 'attribute.name', foreground: 'ffd700' },
-          { token: 'attribute.value', foreground: '00ff88' },
-          { token: 'delimiter', foreground: '8888aa' },
-          { token: 'type', foreground: '00d4ff' },
-          { token: 'variable', foreground: 'e8e8ff' },
-          { token: 'function', foreground: 'ffd700' },
-          { token: 'operator', foreground: 'ff2d95' },
+          { token: 'comment', foreground: '6c7086', fontStyle: 'italic' },
+          { token: 'keyword', foreground: 'cba6f7', fontStyle: 'bold' },
+          { token: 'string', foreground: 'a6e3a1' },
+          { token: 'number', foreground: 'fab387' },
+          { token: 'tag', foreground: '89b4fa' },
+          { token: 'attribute.name', foreground: 'f9e2af' },
+          { token: 'attribute.value', foreground: 'a6e3a1' },
+          { token: 'delimiter', foreground: 'a6adc8' },
+          { token: 'type', foreground: '89b4fa' },
+          { token: 'variable', foreground: 'cdd6f4' },
+          { token: 'function', foreground: '89b4fa' },
+          { token: 'operator', foreground: '94e2d5' },
         ],
         colors: {
-          'editor.background': '#0a0a1a',
-          'editor.foreground': '#e8e8ff',
-          'editor.lineHighlightBackground': '#10102a',
-          'editor.selectionBackground': '#1a1a4a',
-          'editor.inactiveSelectionBackground': '#15153a',
-          'editorCursor.foreground': '#00ff88',
-          'editorLineNumber.foreground': '#333355',
-          'editorLineNumber.activeForeground': '#00ff88',
-          'editor.selectionHighlightBackground': '#1a1a3a',
-          'editorIndentGuide.background': '#1a1a3a',
-          'editorIndentGuide.activeBackground': '#2a2a4a',
-          'editorWidget.background': '#0d0d25',
-          'editorWidget.border': '#1a1a3a',
-          'editorSuggestWidget.background': '#0d0d25',
-          'editorSuggestWidget.border': '#1a1a3a',
-          'editorSuggestWidget.selectedBackground': '#1a1a4a',
-          'minimap.background': '#050510',
+          'editor.background': '#1e1e2e',
+          'editor.foreground': '#cdd6f4',
+          'editor.lineHighlightBackground': '#2a2b3d',
+          'editor.selectionBackground': '#3e4058',
+          'editor.inactiveSelectionBackground': '#313244',
+          'editorCursor.foreground': '#f5e0dc',
+          'editorLineNumber.foreground': '#45475a',
+          'editorLineNumber.activeForeground': '#cdd6f4',
+          'editor.selectionHighlightBackground': '#313244',
+          'editorIndentGuide.background': '#313244',
+          'editorIndentGuide.activeBackground': '#45475a',
+          'editorWidget.background': '#181825',
+          'editorWidget.border': '#313244',
+          'editorSuggestWidget.background': '#181825',
+          'editorSuggestWidget.border': '#313244',
+          'editorSuggestWidget.selectedBackground': '#313244',
+          'minimap.background': '#181825',
         }
       });
 
@@ -1653,7 +2113,7 @@ function initMonaco() {
         renderWhitespace: 'selection',
         bracketPairColorization: { enabled: true },
         guides: { bracketPairs: true, indentation: true },
-        padding: { top: 16 },
+        padding: { top: 12 },
         scrollBeyondLastLine: false,
         automaticLayout: true,
         wordWrap: 'on',
@@ -1661,17 +2121,17 @@ function initMonaco() {
         tabSize: 2,
       });
 
-      // Cursor position tracking
       editor.onDidChangeCursorPosition((e) => {
         document.getElementById('cursor-pos').textContent =
           `Ln ${e.position.lineNumber}, Col ${e.position.column}`;
-        // Broadcast cursor to collaborators
         broadcastCursor(e.position.lineNumber, e.position.column);
       });
 
-      // Auto-save on content change
       editor.onDidChangeModelContent(() => {
-        if (isRemoteUpdate) return; // Don't echo remote changes
+        if (isRemoteUpdate) return;
+
+        // Save to in-memory file
+        saveCurrentFileContent();
 
         clearTimeout(autoSaveTimer);
         document.getElementById('save-status').textContent = '● Modified';
@@ -1681,17 +2141,14 @@ function initMonaco() {
           if (currentProject) saveProject(true);
         }, 2000);
 
-        // Broadcast live edit to collaborators
         broadcastLiveEdit(editor.getValue());
 
-        // Live preview for web languages
         if (currentProject && ['html', 'css', 'javascript'].includes(currentProject.language)) {
           clearTimeout(window._previewTimer);
           window._previewTimer = setTimeout(refreshPreview, 500);
         }
       });
 
-      // Ctrl+S handler
       editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => saveProject());
 
       editorReady = true;
@@ -1702,31 +2159,57 @@ function initMonaco() {
 
 function setEditorLanguage(lang) {
   if (!editor) return;
-  const monacoLang = { html: 'html', css: 'css', javascript: 'javascript', python: 'python', sql: 'sql' };
+  const monacoLang = { html:'html', css:'css', javascript:'javascript', python:'python', sql:'sql' };
   monaco.editor.setModelLanguage(editor.getModel(), monacoLang[lang] || 'plaintext');
 }
 
 function changeLanguage(lang) {
   if (!currentProject) return;
   currentProject.language = lang;
-  setEditorLanguage(lang);
+  document.getElementById('statusbar-lang').textContent = lang.toUpperCase();
+  if (activeFileId === 'main') {
+    setEditorLanguage(lang);
+  }
   updatePanelVisibility(lang);
+  buildFileTree(); // Refresh since main file extension changes
+  // Update tab name for main
+  const mainTab = openTabs.find(t => t.id === 'main');
+  if (mainTab) { mainTab.filename = getMainFileName(); renderTabs(); }
 }
 
 function updatePanelVisibility(lang) {
   const previewPanel = document.getElementById('preview-panel');
   const outputPanel = document.getElementById('output-panel');
+  const resizeHandle = document.getElementById('resize-handle');
+  const outputResize = document.getElementById('output-resize-handle');
 
   if (['html', 'css'].includes(lang)) {
-    previewPanel.classList.remove('hidden');
-    outputPanel.classList.add('hidden');
+    previewPanel.style.display = 'flex';
+    resizeHandle.style.display = '';
+    outputPanel.style.display = 'none';
+    outputResize.style.display = 'none';
   } else if (lang === 'javascript') {
-    // JS gets both preview and output
-    previewPanel.classList.remove('hidden');
-    outputPanel.classList.remove('hidden');
+    previewPanel.style.display = 'flex';
+    resizeHandle.style.display = '';
+    outputPanel.style.display = 'flex';
+    outputResize.style.display = '';
   } else {
-    previewPanel.classList.add('hidden');
-    outputPanel.classList.remove('hidden');
+    previewPanel.style.display = 'none';
+    resizeHandle.style.display = 'none';
+    outputPanel.style.display = 'flex';
+    outputResize.style.display = '';
+  }
+}
+
+function toggleOutputPanel() {
+  const panel = document.getElementById('output-panel');
+  const handle = document.getElementById('output-resize-handle');
+  if (panel.style.display === 'none' || panel.style.display === '') {
+    panel.style.display = 'flex';
+    handle.style.display = '';
+  } else {
+    panel.style.display = 'none';
+    handle.style.display = 'none';
   }
 }
 
@@ -1740,33 +2223,42 @@ async function saveProject(silent = false) {
     return;
   }
 
+  // Save current editor content to in-memory file
+  saveCurrentFileContent();
+
   const statusEl = document.getElementById('save-status');
-  statusEl.textContent = '⟳ Saving...';
+  statusEl.textContent = '⟳ Saving…';
   statusEl.className = 'save-status saving';
 
   try {
-    const code = editor.getValue();
+    // Save main project code
     await api(`/api/projects/${currentProject.id}`, {
       method: 'PUT',
       body: {
         name: currentProject.name,
         description: currentProject.description,
         language: currentProject.language,
-        code
+        code: currentProject.code
       }
     });
 
-    currentProject.code = code;
+    // Save any modified extra files
+    for (const file of projectFiles) {
+      await api(`/api/projects/${currentProject.id}/files`, {
+        method: 'POST',
+        body: { filename: file.filename, content: file.content, language: file.language }
+      });
+    }
+
     statusEl.textContent = '✓ Saved';
     statusEl.className = 'save-status saved';
 
-    // Update last editor display
     document.getElementById('last-editor-info').innerHTML =
-      `✏️ Last edited by <strong style="color:var(--neon-green)">${escHtml(currentUser.username)}</strong> · just now`;
+      `Last edited by <strong style="color:var(--accent-green)">${escHtml(currentUser.username)}</strong> · just now`;
 
     if (!silent) toast('Project saved!', 'success');
   } catch (err) {
-    statusEl.textContent = '✗ Save failed';
+    statusEl.textContent = '✗ Failed';
     statusEl.className = 'save-status';
     if (!silent) toast('Save failed: ' + err.message, 'error');
   }
@@ -1783,52 +2275,45 @@ function runCode() {
   if (lang === 'html' || lang === 'css') {
     refreshPreview();
   } else {
-    // Run on server for Python, SQL, JavaScript
     runOnServer(code, lang);
   }
 }
 
 async function runOnServer(code, language) {
+  // Show output panel
+  document.getElementById('output-panel').style.display = 'flex';
+  document.getElementById('output-resize-handle').style.display = '';
+
   const output = document.getElementById('output-content');
   output.innerHTML = '';
-  addOutput(`⚡ CODE_LAB ${language.toUpperCase()} Runner`, 'info');
-  addOutput('────────────────────────────────────', 'info');
-  addOutput('⏳ Running...', 'info');
+  addOutput(`⚡ CodeLab ${language.toUpperCase()} Runner`, 'info');
+  addOutput('─'.repeat(36), 'info');
+  addOutput('⏳ Running…', 'info');
 
   try {
-    const data = await api('/api/execute', {
-      method: 'POST',
-      body: { code, language }
-    });
-
-    // Clear the "Running..." message
+    const data = await api('/api/execute', { method: 'POST', body: { code, language } });
     output.innerHTML = '';
-    addOutput(`⚡ CODE_LAB ${language.toUpperCase()} Runner`, 'info');
-    addOutput('────────────────────────────────────', 'info');
+    addOutput(`⚡ CodeLab ${language.toUpperCase()} Runner`, 'info');
+    addOutput('─'.repeat(36), 'info');
 
-    if (data.output) {
-      data.output.split('\n').forEach(line => addOutput(line, 'success'));
-    }
-    if (data.error) {
-      data.error.split('\n').forEach(line => addOutput(line, 'error'));
-    }
-    if (!data.output && !data.error) {
-      addOutput('(no output)', 'info');
-    }
+    if (data.output) data.output.split('\n').forEach(line => addOutput(line, 'success'));
+    if (data.error) data.error.split('\n').forEach(line => addOutput(line, 'error'));
+    if (!data.output && !data.error) addOutput('(no output)', 'info');
 
-    addOutput('────────────────────────────────────', 'info');
-    addOutput('✓ Execution complete', 'info');
+    addOutput('─'.repeat(36), 'info');
+    addOutput('✓ Done', 'info');
   } catch (err) {
     output.innerHTML = '';
-    addOutput(`⚡ CODE_LAB ${language.toUpperCase()} Runner`, 'info');
-    addOutput('────────────────────────────────────', 'info');
+    addOutput(`⚡ CodeLab ${language.toUpperCase()} Runner`, 'info');
+    addOutput('─'.repeat(36), 'info');
     addOutput('❌ ' + err.message, 'error');
   }
 }
 
 function refreshPreview() {
   if (!editor) return;
-  const code = editor.getValue();
+  // For preview, always use the main file code
+  const code = activeFileId === 'main' ? editor.getValue() : (currentProject.code || '');
   const lang = currentProject?.language;
   const iframe = document.getElementById('preview-iframe');
 
@@ -1837,39 +2322,33 @@ function refreshPreview() {
     htmlContent = code;
   } else if (lang === 'css') {
     htmlContent = `<!DOCTYPE html><html><head><style>${code}</style></head><body>
-      <h1>CSS Preview</h1>
-      <p>Your styles are applied to this page.</p>
-      <div class="container"><div class="glow">Glowing Text</div></div>
+      <h1>CSS Preview</h1><p>Your styles are applied.</p>
+      <div class="container"><div class="glow">Styled Text</div></div>
       <button>Button</button> <a href="#">Link</a>
       <ul><li>Item 1</li><li>Item 2</li><li>Item 3</li></ul>
     </body></html>`;
   } else if (lang === 'javascript') {
     htmlContent = `<!DOCTYPE html><html><head>
-      <style>body{background:#0a0a1a;color:#00ff88;font-family:'Courier New',monospace;padding:20px;}
-      .log{margin:2px 0;padding:4px 8px;border-left:2px solid #1a1a3a;}
-      .error{color:#ff6b6b;border-left-color:#ff6b6b;}
-      h3{color:#00d4ff;}</style></head><body>
-      <h3>⚡ Console Output</h3><div id="output"></div>
+      <style>body{background:#1e1e2e;color:#a6e3a1;font-family:'Courier New',monospace;padding:16px;}
+      .log{margin:2px 0;padding:3px 6px;border-left:2px solid #313244;}
+      .error{color:#f38ba8;border-left-color:#f38ba8;}
+      h3{color:#89b4fa;}</style></head><body>
+      <h3>Console Output</h3><div id="output"></div>
       <script>
-        const _out = document.getElementById('output');
-        const _origLog = console.log;
-        console.log = (...args) => {
-          const div = document.createElement('div');
-          div.className = 'log';
-          div.textContent = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
-          _out.appendChild(div);
-          _origLog(...args);
+        const _out=document.getElementById('output');
+        const _origLog=console.log;
+        console.log=(...args)=>{
+          const div=document.createElement('div');div.className='log';
+          div.textContent=args.map(a=>typeof a==='object'?JSON.stringify(a,null,2):String(a)).join(' ');
+          _out.appendChild(div);_origLog(...args);
         };
-        console.error = (...args) => {
-          const div = document.createElement('div');
-          div.className = 'log error';
-          div.textContent = '❌ ' + args.join(' ');
-          _out.appendChild(div);
+        console.error=(...args)=>{
+          const div=document.createElement('div');div.className='log error';
+          div.textContent='❌ '+args.join(' ');_out.appendChild(div);
         };
-        try { ${code} } catch(e) { console.error(e.message); }
+        try{${code}}catch(e){console.error(e.message);}
       <\/script></body></html>`;
   }
-
   iframe.srcdoc = htmlContent;
 }
 
@@ -1884,103 +2363,79 @@ function addOutput(text, type = '') {
 
 function clearOutput() {
   document.getElementById('output-content').innerHTML =
-    '<span style="color:var(--text-dim)">// Run your code to see output here...</span>';
+    '<span style="color:var(--text-dim)">// Run code to see output…</span>';
 }
 
 function formatCode() {
   if (!editor) return;
   editor.getAction('editor.action.formatDocument')?.run();
-  toast('Code formatted', 'info');
+  toast('Formatted', 'info');
 }
 
 // ══════════════════════════════════════════════════════════════════
-// GITHUB INTEGRATION
+// GITHUB
 // ══════════════════════════════════════════════════════════════════
 async function connectGitHub() {
   const token = document.getElementById('github-token-input').value.trim();
-  if (!token) { toast('Please enter a GitHub token', 'error'); return; }
-
+  if (!token) { toast('Enter a GitHub token', 'error'); return; }
   try {
-    const data = await api('/api/github/connect', {
-      method: 'POST',
-      body: { token }
-    });
+    const data = await api('/api/github/connect', { method: 'POST', body: { token } });
     currentUser.github_username = data.github_username;
     currentUser.has_github_token = true;
     toast(`Connected as @${data.github_username}!`, 'success');
     showSettings();
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+  } catch (err) { toast(err.message, 'error'); }
 }
 
 async function disconnectGitHub() {
-  if (!confirm('Disconnect your GitHub account?')) return;
+  if (!confirm('Disconnect GitHub?')) return;
   try {
     await api('/api/github/disconnect', { method: 'POST' });
     currentUser.github_username = null;
     currentUser.has_github_token = false;
-    toast('GitHub disconnected', 'info');
+    toast('Disconnected', 'info');
     showSettings();
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+  } catch (err) { toast(err.message, 'error'); }
 }
 
 async function pushToGitHub() {
   if (!currentProject) return;
-
   if (!currentUser.has_github_token && !currentUser.github_username) {
-    toast('Connect your GitHub account in Settings first', 'error');
+    toast('Connect GitHub in Settings first', 'error');
     return;
   }
-
-  // Save first
   await saveProject(true);
-
-  toast('Pushing to GitHub...', 'info');
-
+  toast('Pushing to GitHub…', 'info');
   try {
-    const data = await api(`/api/projects/${currentProject.id}/push-github`, {
-      method: 'POST'
-    });
-
+    const data = await api(`/api/projects/${currentProject.id}/push-github`, { method: 'POST' });
     currentProject.github_repo = data.repo_name;
     currentProject.github_url = data.repo_url;
     currentProject.is_hosted = 1;
-
-    toast('Pushed to GitHub! 🎉', 'success');
-
-    // Show links
+    toast('Pushed! 🎉', 'success');
     setTimeout(() => {
       toast(`Repo: ${data.repo_url}`, 'info');
-      if (data.pages_url) {
-        toast(`Pages: ${data.pages_url}`, 'info');
-      }
+      if (data.pages_url) toast(`Pages: ${data.pages_url}`, 'info');
     }, 500);
-  } catch (err) {
-    toast('GitHub push failed: ' + err.message, 'error');
-  }
+  } catch (err) { toast('Push failed: ' + err.message, 'error'); }
 }
 
 // ══════════════════════════════════════════════════════════════════
 // EDIT HISTORY
 // ══════════════════════════════════════════════════════════════════
 function toggleHistory() {
-  const panel = document.getElementById('history-panel');
-  panel.classList.toggle('hidden');
+  toggleSidebarPanel('history');
 }
 
 function renderEditHistory() {
   const list = document.getElementById('history-list');
+  if (!list) return;
   if (currentEditHistory.length === 0) {
-    list.innerHTML = '<p style="color:var(--text-dim); font-size:0.8rem; padding:12px;">No edits yet</p>';
+    list.innerHTML = '<p style="color:var(--text-dim); font-size:0.75rem; padding:10px;">No edits yet</p>';
     return;
   }
-
   list.innerHTML = currentEditHistory.map(h => `
     <div class="history-item">
-      <div style="display:flex; align-items:center; gap:6px;">
+      <div style="display:flex; align-items:center; gap:4px;">
         <span class="h-user">${escHtml(h.username)}</span>
         <span class="h-action-badge ${h.action === 'push' ? 'h-badge-push' : 'h-badge-edit'}">${h.action}</span>
       </div>
@@ -1995,7 +2450,6 @@ function formatTimeAgo(dateStr) {
   const now = new Date();
   const d = new Date(dateStr + (dateStr.includes('Z') ? '' : 'Z'));
   const diff = Math.floor((now - d) / 1000);
-
   if (diff < 10) return 'just now';
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
@@ -2007,26 +2461,12 @@ function formatTimeAgo(dateStr) {
 // ══════════════════════════════════════════════════════════════════
 // REAL-TIME COLLABORATION (SSE)
 // ══════════════════════════════════════════════════════════════════
-let sseConnection = null;
-let activeUsers = [];
-let remoteCursors = {}; // userId -> { line, column, username }
-let cursorDecorations = []; // Monaco decoration IDs
-let isRemoteUpdate = false; // Flag to prevent echo
-let cursorThrottle = null;
-
-const USER_COLORS = [
-  '#ff2d95', '#00d4ff', '#ffd700', '#b44dff',
-  '#ff8c00', '#00ff88', '#ff6b6b', '#4da6ff',
-  '#ff69b4', '#7b68ee'
-];
-
 function getUserColor(userId) {
   return USER_COLORS[userId % USER_COLORS.length];
 }
 
 function connectSSE(projectId) {
-  disconnectSSE(); // Clean up any existing connection
-
+  disconnectSSE();
   sseConnection = new EventSource(`/api/projects/${projectId}/live`);
 
   sseConnection.addEventListener('connected', (e) => {
@@ -2045,7 +2485,6 @@ function connectSSE(projectId) {
   sseConnection.addEventListener('user-left', (e) => {
     const data = JSON.parse(e.data);
     activeUsers = data.activeUsers;
-    // Remove their cursor
     delete remoteCursors[data.userId];
     updateRemoteCursorDecorations();
     renderActiveUsers();
@@ -2065,27 +2504,26 @@ function connectSSE(projectId) {
     const data = JSON.parse(e.data);
     if (!editor || !currentProject) return;
 
-    // Apply remote change without triggering our own broadcast
-    isRemoteUpdate = true;
-    const currentPos = editor.getPosition();
-    editor.setValue(data.code);
-    if (currentPos) editor.setPosition(currentPos);
-    isRemoteUpdate = false;
+    // Only update if we're viewing the main file
+    if (activeFileId === 'main') {
+      isRemoteUpdate = true;
+      const currentPos = editor.getPosition();
+      editor.setValue(data.code);
+      if (currentPos) editor.setPosition(currentPos);
+      isRemoteUpdate = false;
+    }
+    currentProject.code = data.code;
 
-    // Update preview if web language
     if (['html', 'css', 'javascript'].includes(currentProject.language)) {
       clearTimeout(window._previewTimer);
       window._previewTimer = setTimeout(refreshPreview, 300);
     }
 
-    // Flash the last editor info
     document.getElementById('last-editor-info').innerHTML =
-      `✏️ Live edit by <strong style="color:${getUserColor(data.userId)}">${escHtml(data.username)}</strong> · just now`;
+      `Live edit by <strong style="color:${getUserColor(data.userId)}">${escHtml(data.username)}</strong> · just now`;
   });
 
-  sseConnection.onerror = () => {
-    // Auto-reconnect is handled by EventSource
-  };
+  sseConnection.onerror = () => {};
 }
 
 function disconnectSSE() {
@@ -2103,25 +2541,51 @@ function renderActiveUsers() {
   if (!bar) return;
 
   if (activeUsers.length <= 1) {
-    bar.innerHTML = '<span style="font-size:0.75rem; color:var(--text-dim)">Only you</span>';
-    return;
-  }
-
-  bar.innerHTML = activeUsers.map(u => {
-    const color = getUserColor(u.userId);
-    const isMe = u.userId === currentUser.id;
-    return `
-      <div class="active-user-dot ${isMe ? '' : 'pulse'}" style="background:${color}">
+    bar.innerHTML = '<span style="font-size:0.68rem; color:var(--text-dim)">Only you</span>';
+  } else {
+    bar.innerHTML = activeUsers.map(u => {
+      const color = getUserColor(u.userId);
+      const isMe = u.userId === currentUser.id;
+      return `<div class="active-user-dot ${isMe ? '' : 'pulse'}" style="background:${color}">
         ${u.username[0].toUpperCase()}
         <div class="tooltip">${escHtml(u.username)}${isMe ? ' (you)' : ''}</div>
-      </div>
-    `;
-  }).join('');
+      </div>`;
+    }).join('');
+  }
+
+  // Also update sidebar collab active users
+  const sidebarActive = document.getElementById('sidebar-active-users');
+  if (sidebarActive) {
+    if (activeUsers.length <= 1) {
+      sidebarActive.innerHTML = '<h3>Active</h3><p style="color:var(--text-dim); font-size:0.72rem;">Only you</p>';
+    } else {
+      sidebarActive.innerHTML = '<h3>Active Now</h3>' + activeUsers.map(u => {
+        const color = getUserColor(u.userId);
+        const isMe = u.userId === currentUser.id;
+        return `<div style="display:flex; align-items:center; gap:6px; padding:3px 4px; font-size:0.78rem;">
+          <div style="width:8px; height:8px; border-radius:50%; background:${color};"></div>
+          ${escHtml(u.username)}${isMe ? ' (you)' : ''}
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // Update collab badge count
+  const collabBtn = document.getElementById('act-collab');
+  if (collabBtn) {
+    const existing = collabBtn.querySelector('.badge-count');
+    if (existing) existing.remove();
+    if (activeUsers.length > 1) {
+      const badge = document.createElement('span');
+      badge.className = 'badge-count';
+      badge.textContent = activeUsers.length;
+      collabBtn.appendChild(badge);
+    }
+  }
 }
 
 function updateRemoteCursorDecorations() {
   if (!editor) return;
-
   const newDecorations = [];
   for (const [userId, cursor] of Object.entries(remoteCursors)) {
     const color = getUserColor(Number(userId));
@@ -2130,7 +2594,6 @@ function updateRemoteCursorDecorations() {
       options: {
         isWholeLine: true,
         className: 'remote-cursor-line',
-        glyphMarginClassName: '',
         overviewRuler: { color, position: monaco.editor.OverviewRulerLane.Full },
         minimap: { color, position: monaco.editor.MinimapPosition.Inline },
         stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -2138,14 +2601,12 @@ function updateRemoteCursorDecorations() {
           content: ' ' + cursor.username,
           inlineClassName: 'remote-cursor-label',
         },
-        linesDecorationsClassName: `remote-cursor-line`,
+        linesDecorationsClassName: 'remote-cursor-line',
       }
     });
   }
-
   cursorDecorations = editor.deltaDecorations(cursorDecorations, newDecorations);
 
-  // Also inject dynamic CSS for cursor colors
   let styleEl = document.getElementById('remote-cursor-styles');
   if (!styleEl) {
     styleEl = document.createElement('style');
@@ -2172,9 +2633,10 @@ function broadcastCursor(line, column) {
   }, 100);
 }
 
-let liveEditThrottle = null;
 function broadcastLiveEdit(code) {
   if (!currentProject || isRemoteUpdate) return;
+  // Only broadcast if editing the main file
+  if (activeFileId !== 'main') return;
   clearTimeout(liveEditThrottle);
   liveEditThrottle = setTimeout(() => {
     const pos = editor?.getPosition();
@@ -2187,17 +2649,14 @@ function broadcastLiveEdit(code) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// COLLABORATION
+// COLLABORATOR MANAGEMENT
 // ══════════════════════════════════════════════════════════════════
 function showCollaboratorsModal() {
   if (!currentProject) return;
   document.getElementById('collab-username').value = '';
   document.getElementById('user-search-results').innerHTML = '';
-
-  // Only show invite form for owners
   document.getElementById('collab-invite-section').style.display =
     currentRole === 'owner' ? 'block' : 'none';
-
   renderCollaboratorsList();
   document.getElementById('modal-collaborators').classList.remove('hidden');
 }
@@ -2205,10 +2664,9 @@ function showCollaboratorsModal() {
 function renderCollaboratorsList() {
   const list = document.getElementById('collab-list');
   if (currentCollaborators.length === 0) {
-    list.innerHTML = '<p style="color:var(--text-dim); font-size:0.85rem;">No collaborators yet. Invite someone above!</p>';
+    list.innerHTML = '<p style="color:var(--text-dim); font-size:0.8rem;">No collaborators yet</p>';
     return;
   }
-
   list.innerHTML = currentCollaborators.map(c => `
     <div class="collab-item">
       <div class="collab-avatar ${c.role === 'editor' ? 'role-editor' : 'role-viewer'}">
@@ -2216,10 +2674,10 @@ function renderCollaboratorsList() {
       </div>
       <div class="collab-info">
         <div class="collab-name">${escHtml(c.username)}</div>
-        <div class="collab-role-label">${c.role === 'editor' ? '✏️ Can edit & push' : '👁️ View only'}</div>
+        <div class="collab-role-label">${c.role === 'editor' ? '✏️ Can edit' : '👁️ View only'}</div>
       </div>
       ${currentRole === 'owner' ? `
-        <select class="toolbar-select" onchange="updateCollabRole(${c.id}, this.value)" style="width:100px">
+        <select class="toolbar-select" onchange="updateCollabRole(${c.id}, this.value)" style="width:90px">
           <option value="editor" ${c.role === 'editor' ? 'selected' : ''}>Editor</option>
           <option value="viewer" ${c.role === 'viewer' ? 'selected' : ''}>Viewer</option>
         </select>
@@ -2234,14 +2692,10 @@ async function searchUsers(query) {
   clearTimeout(searchTimeout);
   const container = document.getElementById('user-search-results');
   if (query.length < 2) { container.innerHTML = ''; return; }
-
   searchTimeout = setTimeout(async () => {
     try {
       const data = await api(`/api/users/search?q=${encodeURIComponent(query)}`);
-      if (data.users.length === 0) {
-        container.innerHTML = '';
-        return;
-      }
+      if (data.users.length === 0) { container.innerHTML = ''; return; }
       container.innerHTML = data.users.map(u =>
         `<div class="user-suggestion" onclick="document.getElementById('collab-username').value='${escHtml(u.username)}'; document.getElementById('user-search-results').innerHTML='';">
           ${escHtml(u.username)}
@@ -2255,7 +2709,6 @@ async function inviteCollaborator() {
   const username = document.getElementById('collab-username').value.trim();
   const role = document.getElementById('collab-role').value;
   if (!username) { toast('Enter a username', 'error'); return; }
-
   try {
     const data = await api(`/api/projects/${currentProject.id}/collaborators`, {
       method: 'POST', body: { username, role }
@@ -2264,10 +2717,9 @@ async function inviteCollaborator() {
     document.getElementById('collab-username').value = '';
     document.getElementById('user-search-results').innerHTML = '';
     renderCollaboratorsList();
+    renderSidebarCollab();
     toast(`${username} invited as ${role}!`, 'success');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+  } catch (err) { toast(err.message, 'error'); }
 }
 
 async function updateCollabRole(collabId, role) {
@@ -2277,10 +2729,9 @@ async function updateCollabRole(collabId, role) {
     });
     currentCollaborators = data.collaborators;
     renderCollaboratorsList();
+    renderSidebarCollab();
     toast('Role updated', 'success');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+  } catch (err) { toast(err.message, 'error'); }
 }
 
 async function removeCollaborator(collabId) {
@@ -2291,10 +2742,9 @@ async function removeCollaborator(collabId) {
     });
     currentCollaborators = data.collaborators;
     renderCollaboratorsList();
-    toast('Collaborator removed', 'info');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+    renderSidebarCollab();
+    toast('Removed', 'info');
+  } catch (err) { toast(err.message, 'error'); }
 }
 
 async function leaveProject(projectId) {
@@ -2303,38 +2753,71 @@ async function leaveProject(projectId) {
     await api(`/api/projects/${projectId}/leave`, { method: 'POST' });
     toast('Left project', 'info');
     showDashboard();
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+  } catch (err) { toast(err.message, 'error'); }
 }
 
 // ══════════════════════════════════════════════════════════════════
-// RESIZE HANDLE
+// RESIZE HANDLES
 // ══════════════════════════════════════════════════════════════════
 (() => {
-  const handle = document.getElementById('resize-handle');
-  let isResizing = false;
+  // Vertical resize (editor ↔ preview)
+  const vHandle = document.getElementById('resize-handle');
+  let vResizing = false;
 
-  handle.addEventListener('mousedown', (e) => {
-    isResizing = true;
+  vHandle.addEventListener('mousedown', (e) => {
+    vResizing = true;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
+    e.preventDefault();
   });
 
   document.addEventListener('mousemove', (e) => {
-    if (!isResizing) return;
-    const editorBody = document.querySelector('.editor-body');
-    const editorPanel = document.querySelector('.editor-panel');
-    const rect = editorBody.getBoundingClientRect();
+    if (!vResizing) return;
+    const row = document.getElementById('editor-panels-row');
+    const col = document.getElementById('editor-col');
+    const rect = row.getBoundingClientRect();
     const pct = ((e.clientX - rect.left) / rect.width) * 100;
-    editorPanel.style.flex = 'none';
-    editorPanel.style.width = Math.max(20, Math.min(80, pct)) + '%';
+    col.style.flex = 'none';
+    col.style.width = Math.max(20, Math.min(80, pct)) + '%';
   });
 
   document.addEventListener('mouseup', () => {
-    isResizing = false;
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
+    if (vResizing) {
+      vResizing = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+  });
+
+  // Horizontal resize (editor area ↔ output panel)
+  const hHandle = document.getElementById('output-resize-handle');
+  let hResizing = false;
+  let hStartY = 0;
+  let hStartHeight = 0;
+
+  hHandle.addEventListener('mousedown', (e) => {
+    hResizing = true;
+    hStartY = e.clientY;
+    const panel = document.getElementById('output-panel');
+    hStartHeight = panel.offsetHeight;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!hResizing) return;
+    const diff = hStartY - e.clientY;
+    const panel = document.getElementById('output-panel');
+    panel.style.height = Math.max(80, Math.min(500, hStartHeight + diff)) + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (hResizing) {
+      hResizing = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
   });
 })();
 
@@ -2354,7 +2837,9 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// Enter key support on auth forms
+// ══════════════════════════════════════════════════════════════════
+// EVENT LISTENERS
+// ══════════════════════════════════════════════════════════════════
 document.getElementById('login-password').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') doLogin();
 });
@@ -2364,8 +2849,6 @@ document.getElementById('reg-password').addEventListener('keydown', (e) => {
 document.getElementById('guest-name').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') doGuestLogin();
 });
-
-// Close modal on overlay click
 document.getElementById('modal-new-project').addEventListener('click', function(e) {
   if (e.target === this) hideModal('modal-new-project');
 });
@@ -2373,6 +2856,5 @@ document.getElementById('modal-collaborators').addEventListener('click', functio
   if (e.target === this) hideModal('modal-collaborators');
 });
 </script>
-
 </body>
 </html>
