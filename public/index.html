@@ -2271,13 +2271,58 @@ async function saveProject(silent = false) {
 function runCode() {
   if (!editor || !currentProject) return;
   const code = editor.getValue();
-  const lang = currentProject.language;
+  const lang = detectLanguage(code, currentProject.language);
+
+  // Auto-update project language if detected differently
+  if (lang !== currentProject.language) {
+    currentProject.language = lang;
+    document.getElementById('language-select').value = lang;
+    document.getElementById('statusbar-lang').textContent = lang.toUpperCase();
+    updatePanelVisibility(lang);
+    if (activeFileId === 'main') setEditorLanguage(lang);
+    buildFileTree();
+    const mainTab = openTabs.find(t => t.id === 'main');
+    if (mainTab) { mainTab.filename = getMainFileName(); renderTabs(); }
+    toast(`Auto-detected: ${lang.toUpperCase()}`, 'info');
+  }
 
   if (lang === 'html' || lang === 'css') {
     refreshPreview();
   } else {
     runOnServer(code, lang);
   }
+}
+
+// Auto-detect language from code content
+function detectLanguage(code, fallback) {
+  const trimmed = code.trim();
+
+  // HTML detection
+  if (/^\s*<!DOCTYPE\s+html/i.test(trimmed) || /^\s*<html/i.test(trimmed) || /^\s*<head/i.test(trimmed) || /^\s*<body/i.test(trimmed)) {
+    return 'html';
+  }
+
+  // Python detection
+  if (/^(import |from |def |class |print\(|if __name__|#.*python)/mi.test(trimmed)) {
+    return 'python';
+  }
+
+  // SQL detection
+  if (/^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|PRAGMA|EXPLAIN)\s/mi.test(trimmed)) {
+    return 'sql';
+  }
+
+  // JavaScript detection
+  if (/^(const |let |var |function |import |export |console\.|document\.|window\.)/m.test(trimmed)) {
+    return 'javascript';
+  }
+
+  // CSS detection
+  if (/^\s*([.#@:][a-zA-Z]|body\s*{|html\s*{|\*\s*{|:root\s*{)/m.test(trimmed)) {
+    return 'css';
+  }
+
+  return fallback;
 }
 
 async function runOnServer(code, language) {
