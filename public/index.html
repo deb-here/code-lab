@@ -2271,26 +2271,33 @@ async function saveProject(silent = false) {
 function runCode() {
   if (!editor || !currentProject) return;
   const code = editor.getValue();
-  const lang = detectLanguage(code, currentProject.language);
 
-  // Auto-update project language if detected differently
-  if (lang !== currentProject.language) {
-    currentProject.language = lang;
-    document.getElementById('language-select').value = lang;
-    document.getElementById('statusbar-lang').textContent = lang.toUpperCase();
-    updatePanelVisibility(lang);
-    if (activeFileId === 'main') setEditorLanguage(lang);
-    buildFileTree();
-    const mainTab = openTabs.find(t => t.id === 'main');
-    if (mainTab) { mainTab.filename = getMainFileName(); renderTabs(); }
-    toast(`Auto-detected: ${lang.toUpperCase()}`, 'info');
+  // Determine language: use active file's extension first, then auto-detect
+  let lang;
+  if (activeFileId === 'main') {
+    lang = detectLanguage(code, currentProject.language);
+  } else {
+    const file = projectFiles.find(f => String(f.id) === String(activeFileId));
+    const fileLang = file ? getLangFromFilename(file.filename) : null;
+    lang = fileLang || detectLanguage(code, currentProject.language);
   }
+
+  // Update status bar to show what's running
+  document.getElementById('statusbar-lang').textContent = lang.toUpperCase();
 
   if (lang === 'html' || lang === 'css') {
     refreshPreview();
   } else {
     runOnServer(code, lang);
   }
+}
+
+// Get language from filename extension
+function getLangFromFilename(filename) {
+  if (!filename) return null;
+  const ext = filename.split('.').pop().toLowerCase();
+  const map = { html: 'html', htm: 'html', css: 'css', js: 'javascript', py: 'python', sql: 'sql' };
+  return map[ext] || null;
 }
 
 // Auto-detect language from code content
@@ -2358,9 +2365,15 @@ async function runOnServer(code, language) {
 
 function refreshPreview() {
   if (!editor) return;
-  // For preview, always use the main file code
-  const code = activeFileId === 'main' ? editor.getValue() : (currentProject.code || '');
-  const lang = currentProject?.language;
+  const code = editor.getValue();
+  // Determine the language for the active file
+  let lang;
+  if (activeFileId === 'main') {
+    lang = currentProject?.language;
+  } else {
+    const file = projectFiles.find(f => String(f.id) === String(activeFileId));
+    lang = file ? (getLangFromFilename(file.filename) || currentProject?.language) : currentProject?.language;
+  }
   const iframe = document.getElementById('preview-iframe');
 
   let htmlContent = '';
