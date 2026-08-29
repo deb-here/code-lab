@@ -1557,6 +1557,7 @@ async function showEditor(projectId) {
   try {
     const data = await api(`/api/projects/${projectId}`);
     currentProject = data.project;
+    currentProject.id = currentProject.id || currentProject._id;
     currentRole = data.role || 'owner';
     currentCollaborators = data.collaborators || [];
     currentEditHistory = data.editHistory || [];
@@ -1635,8 +1636,8 @@ async function showEditor(projectId) {
 async function loadProjects() {
   try {
     const data = await api('/api/projects');
-    projects = data.projects;
-    sharedProjects = data.shared_projects || [];
+    projects = (data.projects || []).map(p => ({ ...p, id: p.id || p._id }));
+    sharedProjects = (data.shared_projects || []).map(p => ({ ...p, id: p.id || p._id }));
     renderProjects();
   } catch (err) {
     toast('Failed to load projects: ' + err.message, 'error');
@@ -1670,20 +1671,20 @@ function renderProjects() {
 
 function renderProjectCard(p, role) {
   return `
-    <div class="project-card" onclick="showEditor(${p.id})">
+    <div class="project-card" onclick="showEditor('${p.id || p._id}')">
       <h3>${escHtml(p.name)}</h3>
       <p class="project-desc">${escHtml(p.description) || 'No description'}</p>
       <div class="project-meta">
         <span class="lang-badge lang-${p.language}">${p.language}</span>
         ${p.is_hosted ? '<span class="hosted-badge">🌐 Hosted</span>' : ''}
         ${role !== 'owner' ? `<span class="shared-badge">👥 ${role}</span>` : ''}
-        <span class="project-date">${formatDate(p.updated_at)}</span>
+        <span class="project-date">${formatDate(p.updatedAt || p.updated_at)}</span>
       </div>
       ${p.last_editor_name ? `<div style="font-size:0.7rem; color:var(--text-secondary); margin-top:6px;">✏️ ${escHtml(p.last_editor_name)} · ${p.last_edited_at ? formatTimeAgo(p.last_edited_at) : ''}</div>` : ''}
       <div style="margin-top:10px; display:flex; gap:6px;">
         ${p.github_url ? `<a href="${escHtml(p.github_url)}" target="_blank" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">🐙 Repo</a>` : ''}
-        ${role === 'owner' ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteProject(${p.id}, '${escHtml(p.name)}')">🗑</button>` : ''}
-        ${role !== 'owner' ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); leaveProject(${p.id})">↩ Leave</button>` : ''}
+        ${role === 'owner' ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteProject('${p.id || p._id}', '${escHtml(p.name)}')">🗑</button>` : ''}
+        ${role !== 'owner' ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); leaveProject('${p.id || p._id}')">↩ Leave</button>` : ''}
       </div>
     </div>
   `;
@@ -2440,7 +2441,7 @@ function renderEditHistory() {
         <span class="h-action-badge ${h.action === 'push' ? 'h-badge-push' : 'h-badge-edit'}">${h.action}</span>
       </div>
       <div class="h-action">${escHtml(h.summary)}</div>
-      <div class="h-time">${formatTimeAgo(h.created_at)}</div>
+      <div class="h-time">${formatTimeAgo(h.created_at || h.createdAt)}</div>
     </div>
   `).join('');
 }
