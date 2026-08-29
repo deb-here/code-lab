@@ -1910,6 +1910,10 @@ function loadFileIntoEditor(fileId) {
   const monacoLang = { html:'html', css:'css', javascript:'javascript', python:'python', sql:'sql',
     json:'json', xml:'xml', typescript:'typescript', markdown:'markdown', plaintext:'plaintext', scss:'scss' };
   monaco.editor.setModelLanguage(editor.getModel(), monacoLang[lang] || 'plaintext');
+
+  // Update panels and status bar for the active file's language
+  updatePanelVisibility(lang);
+  document.getElementById('statusbar-lang').textContent = lang.toUpperCase();
 }
 
 function saveCurrentFileContent() {
